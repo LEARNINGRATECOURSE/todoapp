@@ -1,0 +1,40 @@
+/* Design tokens: the single source of truth for the Hand-Drawn system. */
+:root {
+  /* Palette */
+  --paper: #fdfbf7;
+  --pencil: #2d2d2d;
+  --paper-muted: #e5e0d8;
+  --marker-red: #ff4d4d;
+  --pen-blue: #2d5da1;
+  --white: #fff;
+  --sticky: #fff9c4;
+
+  /* Text-safe variants (WCAG AA): raw marker red fails as text on paper */
+  --ink-soft: #5a5650;
+  --red-ink: #b3261e;
+  --on-red: #1a1a1a;
+
+  /* Typography */
+  --font-head: "Kalam", "Comic Sans MS", "Chalkboard SE", cursive;
+  --font-body: "Patrick Hand", "Comic Sans MS", "Chalkboard SE", cursive;
+
+  /* Borders & hard shadows (never blurred) */
+  --bw: 3px;
+  --bw-thin: 2px;
+  --shadow: 4px 4px 0 var(--pencil);
+  --shadow-sm: 2px 2px 0 var(--pencil);
+  --shadow-lg: 6px 6px 0 var(--pencil);
+
+  /* Wobbly radii: 4 corners / 4 corners, intentionally uneven */
+  --wobble-lg: 255px 15px 225px 15px / 15px 225px 15px 255px;
+  --wobble-lg-alt: 15px 255px 15px 225px / 225px 15px 255px 15px;
+  --wobble-md: 28px 10px 26px 12px / 12px 26px 10px 28px;
+  --wobble-sm: 14px 6px 12px 8px / 8px 12px 6px 14px;
+  --wobble-blob: 46% 54% 52% 48% / 54% 46% 56% 44%;
+
+  /* Layout & motion */
+  --tap: 48px;
+  --gap: 1rem;
+  --ease-snap: cubic-bezier(.3, 1.5, .5, 1);
+  --t-fast: 120ms;
+}

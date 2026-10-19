@@ -1,0 +1,195 @@
+// Views return HTML strings. All user text goes through esc().
+import { icon, circled } from './icons.js';
+import { key, today, dayStatus, chain, completion30, progress66, heatmap, weekly, tagInsights, logKey, PROGRESS_DAYS } from './stats.js';
+import * as reminders from './reminders.js';
+
+export const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+export const WEEKDAYS = [['Mon', 1], ['Tue', 2], ['Wed', 3], ['Thu', 4], ['Fri', 5], ['Sat', 6], ['Sun', 0]];
+export const PRESET_TAGS = ['tired', 'anxious', 'distracted', 'busy', 'rushed'];
+const LEVELS = ['low', 'medium', 'high'];
+const CHEERS = ['Nice one!', 'Look at you go!', 'Another link in the chain.', 'Done and dusted.'];
+const cheer = (id) => CHEERS[[...id].reduce((n, c) => n + c.charCodeAt(0), 0) % CHEERS.length];
+
+const scheduleLabel = (h) => (h.days.length === 7 ? 'Every day' : WEEKDAYS.filter(([, d]) => h.days.includes(d)).map(([n]) => n).join(' · '));
+const btn = (action, label, ic, extra = '', cls = '') =>
+  `<button type="button" class="btn ${cls}" data-action="${action}" ${extra}>${icon(ic)}<span>${label}</span></button>`;
+
+/* ---------------- Today ---------------- */
+function resistancePanel(h, draft) {
+  const tags = [...new Set([...PRESET_TAGS, ...draft.tags])];
+  return `<div class="panel" id="panel-${esc(h.id)}">
+    <div><div class="panel-label" id="res-${esc(h.id)}">How much resistance? <span class="muted small">(optional)</span></div>
+      <div class="chips" role="group" aria-labelledby="res-${esc(h.id)}">
+        ${LEVELS.map((l) => `<button type="button" class="chip" data-action="res" data-level="${l}" aria-pressed="${draft.resistance === l}">${l[0].toUpperCase() + l.slice(1)}</button>`).join('')}
+      </div></div>
+    <div><div class="panel-label" id="tags-${esc(h.id)}">What's in the way?</div>
+      <div class="chips" role="group" aria-labelledby="tags-${esc(h.id)}">
+        ${tags.map((t) => `<button type="button" class="chip" data-action="tag" data-tag="${esc(t)}" aria-pressed="${draft.tags.includes(t)}">${esc(t)}</button>`).join('')}
+      </div></div>
+    <form class="row" data-form="custom-tag">
+      <label class="visually-hidden" for="tag-in-${esc(h.id)}">Add your own tag</label>
+      <input class="input" id="tag-in-${esc(h.id)}" name="tag" maxlength="24" placeholder="your own tag…" style="flex:1 1 9rem" autocomplete="off">
+      <button class="btn btn--small" type="submit">${icon('plus')}<span>Add tag</span></button>
+    </form>
+  </div>`;
+}
+
+function todayCard(h, state, ui, now) {
+  const date = key(now);
+  const log = state.logs[logKey(h.id, date)];
+  const c = chain(h, state.logs, now);
+  const pct = completion30(h, state.logs, now);
+  const open = ui.panel === h.id;
+  const id = `data-id="${esc(h.id)}"`;
+  const stampHtml = log && `<span class="stamp ${log.status === 'skip' ? 'stamp--skip' : ''}">${icon(log.status === 'done' ? 'check' : 'skip')} ${log.status === 'done' ? 'Done' : 'Skipped'}</span>`;
+  return `<li class="card ${log?.status === 'done' ? 'card--done' : ''} ${ui.justLogged === h.id ? 'just-logged' : ''}" ${id}>
+    <div class="habit-head">
+      <h3 class="habit-name">${esc(h.name)}</h3>${stampHtml || ''}
+    </div>
+    ${h.cue ? `<p class="bubble bubble--cue small">${esc(h.cue)}</p>` : ''}
+    <div class="badges">
+      <span class="badge">${icon('link')} Chain: ${c}</span>
+      <span class="badge">${pct === null ? '30 days: —' : `Last 30 days: ${pct}%`}</span>
+    </div>
+    ${log ? `
+      ${log.resistance || log.tags.length ? `<p class="small muted">Felt: ${[log.resistance && `${log.resistance} resistance`, ...log.tags].filter(Boolean).map(esc).join(', ')}</p>` : ''}
+      <p class="bubble small">${log.status === 'done' ? cheer(h.id) : "Rest day logged. Your chain is safe."}</p>
+      <div class="actions">${btn('undo', 'Undo', 'undo', `${id} data-fid="undo-${esc(h.id)}"`, 'btn--small')}</div>
+    ` : `
+      ${open ? resistancePanel(h, ui.draft) : ''}
+      <div class="actions">
+        ${btn('log', 'Done', 'check', `${id} data-status="done" data-fid="done-${esc(h.id)}"`, 'btn--wide')}
+        ${btn('log', 'Skip', 'skip', `${id} data-status="skip"`, 'btn--wide')}
+        <button type="button" class="btn btn--small" data-action="panel" ${id} aria-expanded="${open}" aria-controls="panel-${esc(h.id)}" data-fid="panel-${esc(h.id)}">${icon('gauge')}<span>${open ? 'Hide check-in' : 'Check-in'}</span></button>
+      </div>`}
+  </li>`;
+}
+
+export function todayView(state, ui) {
+  const now = today();
+  const dateStr = now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  const habits = state.habits.filter((h) => !h.archived && h.days.includes(now.getDay()));
+  const logged = habits.filter((h) => state.logs[logKey(h.id, key(now))]).length;
+  const hero = `<div class="sticky taped">
+      <h2>${esc(dateStr)}</h2>
+      <p>${!habits.length ? 'Nothing scheduled today.' : logged === habits.length ? 'All logged. Go enjoy your day!' : `${logged} of ${habits.length} logged. Missed days are normal here.`}</p>
+    </div>`;
+  if (!state.habits.some((h) => !h.archived)) {
+    return `<div class="stack">${hero}<div class="card card--dashed empty">
+      ${circled('sparkles')}<h3>A blank page!</h3><p>Add your first habit. Three to six is plenty.</p>
+      ${btn('new-habit', 'Add a habit', 'plus', '', 'btn--wide')}</div></div>`;
+  }
+  return `<div class="stack">${hero}
+    <ul class="list" aria-label="Today's habits">${habits.map((h, i) => todayCard(h, state, ui, now).replace('<li class="card', `<li class="card ${i % 3 === 0 ? 'pinned' : i % 3 === 1 ? 'taped' : ''}`)).join('')}</ul></div>`;
+}
+
+/* ---------------- Habits ---------------- */
+const habitRow = (h) => `<li class="card ${h.archived ? 'card--dashed' : ''}" data-id="${esc(h.id)}">
+  <div class="habit-head"><div><h3 class="habit-name">${esc(h.name)}</h3>
+    <p class="small muted">${scheduleLabel(h)}${h.reminder ? ` · ${icon('bell').replace('class="icon"', 'class="icon" style="width:1rem;height:1rem;vertical-align:-.15rem"')} ${esc(h.reminder)}` : ''}</p>
+    ${h.cue ? `<p class="small">Cue: ${esc(h.cue)}</p>` : ''}</div></div>
+  <div class="actions">
+    ${btn('edit-habit', 'Edit', 'pencil', `data-id="${esc(h.id)}" data-fid="edit-${esc(h.id)}"`, 'btn--small')}
+    ${h.archived
+      ? btn('restore', 'Restore', 'undo', `data-id="${esc(h.id)}"`, 'btn--small')
+      : btn('archive', 'Archive', 'archive', `data-id="${esc(h.id)}"`, 'btn--small btn--danger')}
+  </div></li>`;
+
+export function habitsView(state) {
+  const active = state.habits.filter((h) => !h.archived);
+  const archived = state.habits.filter((h) => h.archived);
+  return `<div class="stack">
+    <div class="view-title"><h2>My habits</h2>${btn('new-habit', 'New habit', 'plus', 'data-fid="new"')}</div>
+    ${active.length ? `<ul class="list">${active.map(habitRow).join('')}</ul>` : '<p class="muted">No active habits yet.</p>'}
+    ${archived.length ? `<section class="stack stack--tight"><h3>Archived</h3><ul class="list">${archived.map(habitRow).join('')}</ul></section>` : ''}
+  </div>`;
+}
+
+export function editorForm(h) {
+  const days = h?.days ?? [0, 1, 2, 3, 4, 5, 6];
+  return `<h2 id="editor-title">${h ? 'Edit habit' : 'New habit'}</h2>
+  <form method="dialog" data-form="habit" novalidate>
+    <input type="hidden" name="id" value="${esc(h?.id)}">
+    <div class="field"><label for="f-name">Name</label>
+      <input class="input" id="f-name" name="name" required maxlength="60" value="${esc(h?.name)}" placeholder="e.g. Stretch" autocomplete="off">
+      <p class="hint" id="f-name-err" role="alert" hidden style="color:var(--red-ink)">Give it a name first.</p></div>
+    <fieldset class="field"><legend>Schedule</legend>
+      <div class="chips">
+        ${WEEKDAYS.map(([n, d]) => `<label class="chip"><input type="checkbox" name="day" value="${d}" ${days.includes(d) ? 'checked' : ''}>${n}</label>`).join('')}
+      </div>
+      <p class="hint" id="f-days-err" role="alert" hidden style="color:var(--red-ink)">Pick at least one day.</p></fieldset>
+    <div class="field"><label for="f-cue">Cue <span class="muted small">(optional)</span></label>
+      <input class="input" id="f-cue" name="cue" maxlength="80" value="${esc(h?.cue)}" placeholder="after morning coffee" autocomplete="off"></div>
+    <div class="field"><label for="f-rem">Reminder <span class="muted small">(optional)</span></label>
+      <input class="input" id="f-rem" name="reminder" type="time" value="${esc(h?.reminder)}"></div>
+    <div class="row row--between">
+      <button type="button" class="btn" data-action="close-dialog">${icon('x')}<span>Cancel</span></button>
+      <button type="submit" class="btn btn--on">${icon('check')}<span>Save</span></button>
+    </div>
+  </form>`;
+}
+
+/* ---------------- History ---------------- */
+const STATUS_WORDS = { done: 'done', skip: 'skipped', miss: 'missed', rest: 'not scheduled', open: 'to do', before: 'before habit', future: 'upcoming' };
+
+function insightsCard(state) {
+  const ins = tagInsights(state.habits.filter((h) => !h.archived), state.logs);
+  let body;
+  if (!ins.rows.length && !ins.ready) body = `<p>Add tags on your check-ins. After two weeks, I'll show which ones tend to come before a missed day. ${ins.daysLeft} days to go.</p>`;
+  else if (!ins.ready) body = `<p>Keep tagging. Patterns show up in ${ins.daysLeft} more days.</p>`;
+  else if (!ins.rows.length) body = '<p>No tagged check-ins to learn from yet. Tags are optional, and that is fine.</p>';
+  else body = `<p class="muted small">How often the next scheduled day was missed after a check-in with each tag.</p>
+    <ul class="list">${ins.rows.map((r) => `<li><div class="row row--between"><strong>${esc(r.tag)}</strong><span>${r.misses} of ${r.total} followed by a miss</span></div>
+      <div class="bar" role="img" aria-label="${Math.round((r.misses / r.total) * 100)} percent"><i style="width:${(r.misses / r.total) * 100}%"></i></div></li>`).join('')}</ul>`;
+  return `<section class="card" aria-labelledby="ins-h"><h3 id="ins-h">Before the misses</h3><div class="stack stack--tight" style="margin-top:.6rem">${body}</div></section>`;
+}
+
+export function historyView(state, ui) {
+  const habits = state.habits.filter((h) => !h.archived);
+  if (!habits.length) return `<div class="card card--dashed empty">${circled('calendar')}<h3>Nothing to look back on yet</h3><p>Your history will fill in as you log.</p></div>`;
+  const h = habits.find((x) => x.id === ui.historyId) ?? habits[0];
+  const cells = heatmap(h, state.logs);
+  const c = chain(h, state.logs), pct = completion30(h, state.logs), p66 = progress66(h, state.logs);
+  const summary = weekly(habits, state.logs);
+  return `<div class="stack">
+    <h2>History</h2>
+    <div class="chips" role="group" aria-label="Choose a habit">
+      ${habits.map((x) => `<button type="button" class="chip" data-action="pick-history" data-id="${esc(x.id)}" aria-pressed="${x.id === h.id}">${esc(x.name)}</button>`).join('')}
+    </div>
+    <section class="card" aria-labelledby="hm-h"><h3 id="hm-h">${esc(h.name)}</h3>
+      <div class="badges"><span class="badge">${icon('link')} Chain: ${c}</span><span class="badge">${pct === null ? '30 days: —' : `Last 30 days: ${pct}%`}</span></div>
+      <div class="heat" role="img" aria-label="Calendar heatmap of the last 13 weeks. ${cells.filter((x) => x.status === 'done').length} days done.">
+        ${cells.map((x) => `<span class="${x.status}" title="${esc(x.date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }))}: ${STATUS_WORDS[x.status]}"></span>`).join('')}
+      </div>
+      <p class="small muted">Columns are weeks, Monday at the top.</p>
+      <div class="legend" aria-hidden="true">
+        <span><i class="heat-key done"></i>Done</span><span><i class="heat-key skip"></i>Skipped</span>
+        <span><i class="heat-key miss"></i>Missed</span><span><i class="heat-key rest"></i>Off day</span>
+      </div></section>
+    <section class="card" aria-labelledby="p66-h"><h3 id="p66-h">66-day journey</h3>
+      <p class="small muted">Habits take about 66 days on average to feel automatic (Lally et al., 2010). Done days only add up. Misses never subtract.</p>
+      <div class="dots" role="img" aria-label="${p66} of ${PROGRESS_DAYS} days done" style="margin:.7rem 0">${Array.from({ length: PROGRESS_DAYS }, (_, i) => `<i class="${i < p66 ? 'on' : ''}"></i>`).join('')}</div>
+      <p><strong>${p66}</strong> of ${PROGRESS_DAYS} days</p></section>
+    <section class="card" aria-labelledby="wk-h"><h3 id="wk-h">This week</h3>
+      <ul class="list" style="margin-top:.7rem">${summary.map((w) => `<li class="week-row"><div class="row row--between"><span>${esc(w.habit.name)}</span><span>${w.done}/${w.scheduled}${w.skipped ? ` · ${w.skipped} skipped` : ''}</span></div>
+        <div class="bar" role="img" aria-label="${w.done} of ${w.scheduled} done"><i style="width:${w.scheduled ? (w.done / w.scheduled) * 100 : 0}%"></i></div></li>`).join('')}</ul></section>
+    ${insightsCard(state)}
+  </div>`;
+}
+
+/* ---------------- Settings ---------------- */
+export function settingsView() {
+  const perm = reminders.permission();
+  const notifBtn = perm === 'granted' ? '<p>Reminders are on. ✓</p>'
+    : perm === 'denied' ? '<p class="muted">Notifications are blocked. Change this in your browser or phone settings.</p>'
+    : perm === 'unsupported' ? '<p class="muted">This browser can\'t show notifications.</p>'
+    : btn('enable-notifs', 'Turn on reminders', 'bell');
+  return `<div class="stack"><h2>Settings</h2>
+    <section class="card"><h3>Reminders</h3><div class="stack stack--tight" style="margin-top:.6rem">${notifBtn}
+      <p class="small muted">On iPhone and iPad, reminders only work after you add this app to your Home Screen (iOS 16.4+). They fire while the app is open or recently active.</p></div></section>
+    <section class="card"><h3>Your data</h3><div class="stack stack--tight" style="margin-top:.6rem">
+      <p class="small muted">Everything lives on this device. No accounts, ads, or trackers.</p>
+      <div class="actions">${btn('export', 'Export CSV', 'download')}${btn('wipe', 'Delete all data', 'trash', '', 'btn--danger')}</div></div></section>
+  </div>`;
+}
