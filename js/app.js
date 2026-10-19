@@ -1,5 +1,5 @@
 import { getState, saveHabit, deleteHabit, setLog, clearLog, wipe } from './store.js';
-import { key, today } from './stats.js';
+import { key, today, logKey } from './stats.js';
 import { todayView, habitsView, historyView, settingsView, editorForm } from './views.js';
 import { toCsv, download } from './csv.js';
 import * as reminders from './reminders.js';
@@ -44,6 +44,11 @@ function ask(message, okLabel, cancelLabel = 'Keep my data') {
   });
 }
 
+const habitOf = (id) => getState().habits.find((h) => h.id === id);
+const todaysLog = (id) => getState().logs[logKey(id, key(today()))];
+// Check-in answers come from the open panel if there is one, otherwise whatever was already saved
+const feltFor = (id, prev) => (ui.panel === id ? ui.draft : { resistance: prev?.resistance ?? null, tags: prev?.tags ?? [] });
+
 const actions = {
   nav: (el) => go(el.dataset.view),
   panel(el) {
@@ -63,11 +68,19 @@ const actions = {
     main.querySelector(`[data-tag="${CSS.escape(t)}"]`)?.focus();
   },
   log(el) {
-    const id = el.dataset.id;
-    const withDraft = ui.panel === id ? ui.draft : { resistance: null, tags: [] };
-    setLog(id, key(today()), { status: el.dataset.status, ...withDraft });
+    const { id } = el.dataset, h = habitOf(id), prev = todaysLog(id);
+    const count = h.target ? { target: h.target, current: el.dataset.status === 'done' ? h.target : prev?.current ?? 0 } : {};
+    setLog(id, key(today()), { status: el.dataset.status, ...feltFor(id, prev), ...count });
     ui.panel = null; ui.justLogged = id;
     render(`undo-${id}`);
+    ui.justLogged = null;
+  },
+  step(el) { // counter habits: reaching the goal marks the day done; anything less is partial progress
+    const { id } = el.dataset, h = habitOf(id), prev = todaysLog(id);
+    const current = Math.max(0, (prev?.current ?? 0) + Number(el.dataset.delta) * (h.step || 1));
+    if (current === 0) clearLog(id, key(today()));
+    else setLog(id, key(today()), { status: current >= h.target ? 'done' : 'partial', current, target: h.target, ...feltFor(id, prev) });
+    render();
     ui.justLogged = null;
   },
   undo(el) { clearLog(el.dataset.id, key(today())); render(`done-${el.dataset.id}`); },
@@ -113,13 +126,28 @@ document.addEventListener('submit', (e) => {
   }
   const data = new FormData(form);
   const name = data.get('name').trim(), days = data.getAll('day').map(Number);
-  form.querySelector('#f-name-err').hidden = !!name;
-  form.querySelector('#f-days-err').hidden = days.length > 0;
-  if (!name) return form.querySelector('#f-name').focus();
-  if (!days.length) return;
-  saveHabit({ id: data.get('id') || null, name, days, cue: data.get('cue'), reminder: data.get('reminder'), endDate: data.get('endDate') });
+  const isCount = data.get('kind') === 'count', target = isCount ? Number(data.get('target')) : null;
+  const mode = data.get('endMode'), endDate = mode === 'date' ? data.get('endDate') : null, endAfter = mode === 'count' ? Number(data.get('endAfter')) : null;
+  const problems = [
+    ['#f-name-err', !name, '#f-name'],
+    ['#f-target-err', isCount && !(target >= 1), '#f-target'],
+    ['#f-days-err', !days.length, '[name=day]'],
+    ['#f-end-err', (mode === 'date' && !endDate) || (mode === 'count' && !(endAfter >= 1)), mode === 'date' ? '[name=endDate]' : '[name=endAfter]'],
+  ];
+  problems.forEach(([err, bad]) => { form.querySelector(err).hidden = !bad; });
+  const first = problems.find(([, bad]) => bad);
+  if (first) return form.querySelector(first[2]).focus();
+  saveHabit({
+    id: data.get('id') || null, name, days, every: Number(data.get('every')), cue: data.get('cue'), reminder: data.get('reminder'),
+    endDate, endAfter, target, unit: data.get('unit'), step: Number(data.get('step')) || 1,
+  });
   editor.close();
   render();
+});
+
+// Typing in an "Ends" input selects its radio
+document.addEventListener('focusin', (e) => {
+  if (e.target.name === 'endDate' || e.target.name === 'endAfter') e.target.closest('label').querySelector('input[type=radio]').checked = true;
 });
 
 // Close dialogs on backdrop click

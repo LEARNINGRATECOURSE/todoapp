@@ -126,6 +126,18 @@
 .stamp--skip { border-color: var(--red-ink); color: var(--red-ink); border-style: dashed; }
 .stamp--up { border-color: var(--pen-blue); color: var(--pen-blue); }
 
+/* ---------- Counter stepper + tally marks ---------- */
+.stepper { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin: .5rem 0; }
+.stepper-count { flex: 1; text-align: center; min-width: 0; }
+.btn--icon { padding: 0; width: 3.25rem; min-height: 3.25rem; border-radius: var(--wobble-blob); flex: none; }
+.btn--icon .icon { width: 1.75rem; height: 1.75rem; }
+.tally { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-end; min-height: 28px; gap: 4px 10px; margin-bottom: .2rem; }
+.tally-g { position: relative; display: inline-flex; gap: 5px; align-items: flex-end; }
+.tally-g i { width: 3.5px; height: 24px; background: var(--pencil); border-radius: var(--wobble-blob); }
+.tally-g i:nth-child(odd) { transform: rotate(-3deg); }
+.tally-g i:nth-child(even) { transform: rotate(2deg); }
+.tally-g.full::after { content: ""; position: absolute; left: -4px; right: -4px; top: 50%; height: 3.5px; background: var(--pencil); border-radius: var(--wobble-blob); transform: rotate(-22deg); }
+
 /* ---------- Chips (resistance / tags / weekdays) ---------- */
 .chips { display: flex; flex-wrap: wrap; gap: .5rem; border: 0; padding: 0; margin: 0; min-width: 0; }
 .chip {
@@ -148,6 +160,12 @@
   width: 100%; min-height: var(--tap); padding: .4rem .9rem; background: var(--white);
   border: var(--bw-thin) solid var(--pencil); border-radius: var(--wobble-md);
 }
+.input--inline { width: auto; flex: 1 1 9rem; min-width: 0; }
+select.input { padding-right: .5rem; }
+.opt { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; min-height: var(--tap); }
+.opt input[type="radio"] { width: 1.4rem; height: 1.4rem; accent-color: var(--pen-blue); flex: none; }
+.counter-fields { display: none; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); padding: .9rem; border: var(--bw-thin) dashed var(--pencil); border-radius: var(--wobble-md); }
+dialog form:has(#f-kind option[value="count"]:checked) .counter-fields { display: grid; }
 .input:focus-visible { outline: 3px dashed var(--pen-blue); outline-offset: 3px; background: var(--sticky); }
 .hint { color: var(--ink-soft); font-size: 1.05rem; }
 
@@ -165,6 +183,7 @@ dialog form { display: grid; gap: 1rem; }
 .st-skip { background: var(--marker-red); color: var(--on-red); }
 .st-up { background: var(--tint-blue); border-color: var(--pen-blue) !important; color: var(--pen-blue); }
 .st-miss { background: var(--white); border-style: dashed !important; border-color: var(--ink-soft) !important; }
+.st-part { background: linear-gradient(to top, var(--tint-green) 50%, var(--white) 50%); border-style: dashed !important; }
 .st-rest, .st-out { background: transparent; border-style: dotted !important; border-color: var(--paper-muted) !important; color: var(--ink-soft); }
 .st-out { opacity: .55; }
 

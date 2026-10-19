@@ -8,8 +8,8 @@ export function toCsv({ habits, logs }) {
   const names = new Map(habits.map((h) => [h.id, h.name]));
   const rows = Object.values(logs)
     .sort((a, b) => a.date.localeCompare(b.date))
-    .map((l) => [l.date, names.get(l.habitId) ?? '(deleted)', l.status, l.resistance ?? '', (l.tags || []).join('; ')]);
-  return [['date', 'habit', 'status', 'resistance', 'tags'], ...rows].map((r) => r.map(cell).join(',')).join('\n');
+    .map((l) => [l.date, names.get(l.habitId) ?? '(deleted)', l.status, l.current ?? '', l.target ?? '', l.resistance ?? '', (l.tags || []).join('; ')]);
+  return [['date', 'habit', 'status', 'current', 'target', 'resistance', 'tags'], ...rows].map((r) => r.map(cell).join(',')).join('\n');
 }
 
 export function download(filename, text) {

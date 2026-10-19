@@ -1,6 +1,6 @@
 // Views return HTML strings. All user text goes through esc().
 import { icon, circled } from './icons.js';
-import { key, today, isEnded, dayStatus, chain, completion30, journey, calendarDay, addDays, weekly, tagInsights, logKey, PROGRESS_DAYS } from './stats.js';
+import { key, today, isEnded, occursOn, dayStatus, chain, completion30, journey, calendarDay, addDays, weekly, tagInsights, logKey, PROGRESS_DAYS } from './stats.js';
 import * as reminders from './reminders.js';
 
 export const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -11,8 +11,12 @@ const LEVELS = ['low', 'medium', 'high'];
 const CHEERS = ['Nice one!', 'Look at you go!', 'Another link in the chain.', 'Done and dusted.'];
 const cheer = (id) => CHEERS[[...id].reduce((n, c) => n + c.charCodeAt(0), 0) % CHEERS.length];
 
-const scheduleLabel = (h) => (h.days.length === 7 ? 'Every day' : WEEKDAYS.filter(([, d]) => h.days.includes(d)).map(([n]) => n).join(' · '))
-  + (h.endDate ? ` · ${isEnded(h, today()) ? 'ended' : 'until'} ${fmtDate(h.endDate)}` : '');
+const scheduleLabel = (h) => {
+  const days = h.days.length === 7 ? 'Every day' : WEEKDAYS.filter(([, d]) => h.days.includes(d)).map(([n]) => n).join(' · ');
+  return [h.every > 1 ? `Every ${h.every} weeks: ${days}` : days,
+    h.target && `${h.target} ${h.unit || 'times'}`,
+    h.endDate && `${isEnded(h, today()) ? 'ended' : 'until'} ${fmtDate(h.endDate)}${h.endAfter ? ` (${h.endAfter} times)` : ''}`].filter(Boolean).join(' · ');
+};
 const fmtTime = (hhmm) => new Date(`1970-01-01T${hhmm}`).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 const fmtDate = (k, year) => new Date(`${k}T00:00`).toLocaleDateString([], { month: 'short', day: 'numeric', ...(year && { year: 'numeric' }) });
 const btn = (action, label, ic, extra = '', cls = '') =>
@@ -38,14 +42,33 @@ function resistancePanel(h, draft) {
   </div>`;
 }
 
+/** Tally marks: four strokes and a slash per group of five. */
+function tally(n) {
+  if (!n || n > 30) return '';
+  const groups = [];
+  for (let left = n; left > 0; left -= 5) groups.push(Math.min(5, left));
+  return groups.map((g) => (g === 5 ? '<span class="tally-g full"><i></i><i></i><i></i><i></i></span>' : `<span class="tally-g">${'<i></i>'.repeat(g)}</span>`)).join('');
+}
+
+function stepper(h, log, id) {
+  const cur = log?.current ?? 0, step = h.step || 1, unit = h.unit ? ` ${h.unit}` : '';
+  const stepBtn = (delta, ic, label, off) => `<button type="button" class="btn btn--icon" data-action="step" ${id} data-delta="${delta}" data-fid="${delta < 0 ? 'minus' : 'plus'}-${esc(h.id)}" aria-label="${label} ${step}${esc(unit)}" ${off ? 'disabled' : ''}>${icon(ic)}</button>`;
+  return `<div class="stepper">
+    ${stepBtn(-1, 'minus', 'Remove', cur <= 0)}
+    <div class="stepper-count" role="status"><div class="tally" aria-hidden="true">${tally(Math.floor(cur / step))}</div>
+      <strong>${cur} / ${h.target}</strong>${esc(unit)}</div>
+    ${stepBtn(1, 'plus', 'Add', false)}
+  </div>`;
+}
+
 function todayCard(h, state, ui, now) {
-  const date = key(now);
-  const log = state.logs[logKey(h.id, date)];
+  const log = state.logs[logKey(h.id, key(now))];
   const c = chain(h, state.logs, now);
-  const pct = completion30(h, state.logs, now);
   const open = ui.panel === h.id;
   const id = `data-id="${esc(h.id)}"`;
-  const st = log ? log.status : 'up'; // done (green) · skip (red) · up (blue)
+  const done = log?.status === 'done', skipped = log?.status === 'skip';
+  const settled = done || skipped; // a partly-counted habit is still upcoming
+  const st = done ? 'done' : skipped ? 'skip' : 'up'; // done (green) · skip (red) · up (blue)
   const stampHtml = `<span class="stamp stamp--${st}">${icon({ done: 'check', skip: 'skip', up: 'calendar' }[st])} ${{ done: 'Done', skip: 'Skipped', up: 'Upcoming' }[st]}</span>`;
   return `<li class="card card--${st} ${ui.justLogged === h.id ? 'just-logged' : ''}" ${id}>
     <div class="habit-head">
@@ -55,12 +78,12 @@ function todayCard(h, state, ui, now) {
     <div class="badges">
       ${h.reminder ? `<span class="badge">${icon('bell')} ${esc(fmtTime(h.reminder))}</span>` : ''}
       <span class="badge">${icon('link')} Chain ${c}</span>
-      <span class="badge" title="Completion, last 30 days">${pct === null ? '30d: —' : `30d: ${pct}%`}</span>
     </div>
-    ${log ? `
-      ${log.resistance || log.tags.length ? `<p class="small muted">Felt: ${[log.resistance && `${log.resistance} resistance`, ...log.tags].filter(Boolean).map(esc).join(', ')}</p>` : ''}
+    ${log && (log.resistance || log.tags.length) ? `<p class="small muted">Felt: ${[log.resistance && `${log.resistance} resistance`, ...log.tags].filter(Boolean).map(esc).join(', ')}</p>` : ''}
+    ${h.target && !skipped ? stepper(h, log, id) : ''}
+    ${settled ? `
       <div class="row">
-        <p class="bubble bubble--side small">${log.status === 'done' ? cheer(h.id) : 'Rest day. Chain is safe.'}${log.at ? ` · ${esc(new Date(log.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))}` : ''}</p>
+        <p class="bubble bubble--side small">${done ? cheer(h.id) : 'Rest day. Chain is safe.'}${log.at ? ` · ${esc(new Date(log.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))}` : ''}</p>
         ${btn('undo', 'Undo', 'undo', `${id} data-fid="undo-${esc(h.id)}"`, 'btn--small')}
       </div>
     ` : `
@@ -76,9 +99,9 @@ function todayCard(h, state, ui, now) {
 export function todayView(state, ui) {
   const now = today();
   const dateStr = now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
-  const habits = state.habits.filter((h) => h.days.includes(now.getDay()) && !isEnded(h, now))
+  const habits = state.habits.filter((h) => occursOn(h, now) && !isEnded(h, now))
     .sort((a, b) => (a.reminder || '99:99').localeCompare(b.reminder || '99:99'));
-  const logged = habits.filter((h) => state.logs[logKey(h.id, key(now))]).length;
+  const logged = habits.filter((h) => ['done', 'skip'].includes(state.logs[logKey(h.id, key(now))]?.status)).length;
   const hero = `<div class="sticky taped">
       <h2>${esc(dateStr)}</h2>
       <p>${!habits.length ? 'Nothing scheduled today.' : logged === habits.length ? 'All logged. Go enjoy your day!' : `${logged} of ${habits.length} logged. Missed days are normal here.`}</p>
@@ -95,7 +118,7 @@ export function todayView(state, ui) {
 /* ---------------- Habits ---------------- */
 const habitRow = (h) => `<li class="card" data-id="${esc(h.id)}">
   <div class="habit-head"><div><h3 class="habit-name">${esc(h.name)}</h3>
-    <p class="small muted">${scheduleLabel(h)}${h.reminder ? ` · ${esc(fmtTime(h.reminder))}` : ''}</p>
+    <p class="small muted">${esc(scheduleLabel(h))}${h.reminder ? ` · ${esc(fmtTime(h.reminder))}` : ''}</p>
     ${h.cue ? `<p class="small">Cue: ${esc(h.cue)}</p>` : ''}</div></div>
   <div class="actions">
     ${btn('edit-habit', 'Edit', 'pencil', `data-id="${esc(h.id)}" data-fid="edit-${esc(h.id)}"`, 'btn--small')}
@@ -112,24 +135,49 @@ export function habitsView(state) {
 
 export function editorForm(h) {
   const days = h?.days ?? [0, 1, 2, 3, 4, 5, 6];
+  const endMode = h?.endAfter ? 'count' : h?.endDate ? 'date' : 'never';
+  const err = (id, msg) => `<p class="hint" id="${id}" role="alert" hidden style="color:var(--red-ink)">${msg}</p>`;
   return `<h2 id="editor-title">${h ? 'Edit habit' : 'New habit'}</h2>
   <form method="dialog" data-form="habit" novalidate>
     <input type="hidden" name="id" value="${esc(h?.id)}">
     <div class="field"><label for="f-name">Name</label>
       <input class="input" id="f-name" name="name" required maxlength="60" value="${esc(h?.name)}" placeholder="e.g. Stretch" autocomplete="off">
-      <p class="hint" id="f-name-err" role="alert" hidden style="color:var(--red-ink)">Give it a name first.</p></div>
+      ${err('f-name-err', 'Give it a name first.')}</div>
+    <div class="field"><label for="f-kind">Track as</label>
+      <select class="input" id="f-kind" name="kind">
+        <option value="check">Done / not done</option>
+        <option value="count" ${h?.target ? 'selected' : ''}>A number (counter)</option>
+      </select></div>
+    <div class="counter-fields">
+      <div class="field"><label for="f-target">Daily goal</label>
+        <input class="input" id="f-target" name="target" type="number" min="1" max="100000" inputmode="numeric" value="${esc(h?.target)}" placeholder="8">
+        ${err('f-target-err', 'Enter a goal of 1 or more.')}</div>
+      <div class="field"><label for="f-unit">Unit <span class="muted small">(optional)</span></label>
+        <input class="input" id="f-unit" name="unit" maxlength="20" value="${esc(h?.unit)}" placeholder="glasses" autocomplete="off"></div>
+      <div class="field"><label for="f-step">Each tap adds</label>
+        <input class="input" id="f-step" name="step" type="number" min="1" max="100000" inputmode="numeric" value="${esc(h?.step || 1)}"></div>
+    </div>
     <fieldset class="field"><legend>Schedule</legend>
       <div class="chips">
         ${WEEKDAYS.map(([n, d]) => `<label class="chip"><input type="checkbox" name="day" value="${d}" ${days.includes(d) ? 'checked' : ''}>${n}</label>`).join('')}
       </div>
-      <p class="hint" id="f-days-err" role="alert" hidden style="color:var(--red-ink)">Pick at least one day.</p></fieldset>
+      ${err('f-days-err', 'Pick at least one day.')}</fieldset>
+    <div class="field"><label for="f-every">Repeats</label>
+      <select class="input" id="f-every" name="every">
+        ${[[1, 'Every week'], [2, 'Every 2 weeks (fortnightly)'], [3, 'Every 3 weeks'], [4, 'Every 4 weeks']].map(([n, t]) => `<option value="${n}" ${(h?.every || 1) === n ? 'selected' : ''}>${t}</option>`).join('')}
+      </select></div>
     <div class="field"><label for="f-cue">Cue <span class="muted small">(optional)</span></label>
       <input class="input" id="f-cue" name="cue" maxlength="80" value="${esc(h?.cue)}" placeholder="after morning coffee" autocomplete="off"></div>
     <div class="field"><label for="f-rem">Time &amp; reminder <span class="muted small">(optional)</span></label>
       <input class="input" id="f-rem" name="reminder" type="time" value="${esc(h?.reminder)}"></div>
-    <div class="field"><label for="f-end">End date <span class="muted small">(optional)</span></label>
-      <input class="input" id="f-end" name="endDate" type="date" value="${esc(h?.endDate)}" ${h ? '' : `min="${key(today())}"`}>
-      <p class="hint">After this day the habit stops showing up on Today. Its history stays.</p></div>
+    <fieldset class="field"><legend>Ends</legend>
+      <label class="opt"><input type="radio" name="endMode" value="never" ${endMode === 'never' ? 'checked' : ''}> Never</label>
+      <label class="opt"><input type="radio" name="endMode" value="date" ${endMode === 'date' ? 'checked' : ''}> On
+        <input class="input input--inline" name="endDate" type="date" aria-label="End date" value="${esc(h?.endDate)}" ${h ? '' : `min="${key(today())}"`}></label>
+      <label class="opt"><input type="radio" name="endMode" value="count" ${endMode === 'count' ? 'checked' : ''}> After
+        <input class="input input--inline" name="endAfter" type="number" min="1" max="365" inputmode="numeric" aria-label="Number of times" value="${esc(h?.endAfter)}" placeholder="10"> times</label>
+      ${err('f-end-err', 'Choose a date, or how many times.')}
+      <p class="hint">After the end, the habit stops showing up on Today. Its history stays.</p></fieldset>
     <div class="row row--between">
       <button type="button" class="btn" data-action="close-dialog">${icon('x')}<span>Cancel</span></button>
       <button type="submit" class="btn btn--on">${icon('check')}<span>Save</span></button>
@@ -138,7 +186,7 @@ export function editorForm(h) {
 }
 
 /* ---------------- History ---------------- */
-const STATUS_WORDS = { done: 'done', skip: 'skipped', miss: 'missed', rest: 'not scheduled', up: 'upcoming', out: '' };
+const STATUS_WORDS = { part: 'partly done', done: 'done', skip: 'skipped', miss: 'missed', rest: 'not scheduled', up: 'upcoming', out: '' };
 const MONTH = (d) => d.getFullYear() * 12 + d.getMonth();
 
 /** Month calendar from the habit's start date to its end date, marking the days the task is planned. */
@@ -167,7 +215,7 @@ function calendar(h, state, ui, jr) {
       ${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((n) => `<span class="cal-head" aria-hidden="true">${n}</span>`).join('')}${cells.join('')}
     </div>
     <div class="legend" aria-hidden="true">
-      <span><i class="key st-done"></i>Done</span><span><i class="key st-skip"></i>Skipped</span><span><i class="key st-up"></i>Upcoming</span>
+      <span><i class="key st-done"></i>Done</span><span><i class="key st-skip"></i>Skipped</span><span><i class="key st-up"></i>Upcoming</span><span><i class="key st-part"></i>Partly</span>
       <span><i class="key st-miss"></i>Missed</span><span><i class="key st-rest"></i>Off day</span>
     </div>`;
 }
