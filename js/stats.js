@@ -95,9 +95,9 @@ export function calendarDay(habit, logs, date, range, now = today()) {
   return s === 'future' || s === 'before' ? 'rest' : s;
 }
 
-/** This week (Mon–Sun) per habit. */
-export function weekly(habits, logs, now = today()) {
-  const monday = addDays(now, -((now.getDay() + 6) % 7));
+/** This week per habit, starting on `weekStart` (1 = Monday, 0 = Sunday). */
+export function weekly(habits, logs, now = today(), weekStart = 1) {
+  const monday = addDays(now, -((now.getDay() - weekStart + 7) % 7)); // first day of this week
   return habits.map((habit) => {
     let done = 0, skipped = 0, scheduled = 0;
     for (let i = 0; i < 7; i++) {

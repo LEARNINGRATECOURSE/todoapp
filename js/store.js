@@ -65,3 +65,44 @@ export function wipe() {
   state = empty();
   try { localStorage.removeItem(KEY); } catch { /* ignore */ }
 }
+
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const posInt = (n) => (Number.isInteger(n) && n > 0 ? n : null);
+
+/** Validate and sanitise a backup file's text. Returns { habits, logs } or null if it isn't a usable backup. */
+export function parseBackup(text) {
+  let o;
+  try { o = JSON.parse(text); } catch { return null; }
+  if (!o || !Array.isArray(o.habits) || !o.logs || typeof o.logs !== 'object') return null;
+  const habits = [];
+  for (const h of o.habits) {
+    const okDays = Array.isArray(h?.days) && h.days.length && h.days.every((d) => Number.isInteger(d) && d >= 0 && d <= 6);
+    if (typeof h?.id !== 'string' || typeof h.name !== 'string' || !DATE.test(h.createdAt) || !okDays) return null;
+    habits.push({
+      id: h.id, name: h.name.slice(0, 60), createdAt: h.createdAt, days: h.days,
+      every: [1, 2, 3, 4].includes(h.every) ? h.every : 1,
+      cue: String(h.cue ?? '').slice(0, 80),
+      reminder: /^\d{2}:\d{2}$/.test(h.reminder) ? h.reminder : null,
+      endDate: DATE.test(h.endDate) ? h.endDate : null, endAfter: posInt(h.endAfter),
+      target: posInt(h.target), unit: String(h.unit ?? '').slice(0, 20), step: posInt(h.step) ?? 1,
+    });
+  }
+  const ids = new Set(habits.map((h) => h.id));
+  const logs = {};
+  for (const l of Object.values(o.logs)) {
+    if (!ids.has(l?.habitId) || !DATE.test(l.date) || !['done', 'skip', 'partial'].includes(l.status)) continue;
+    logs[logKey(l.habitId, l.date)] = {
+      habitId: l.habitId, date: l.date, status: l.status,
+      resistance: ['low', 'medium', 'high'].includes(l.resistance) ? l.resistance : null,
+      tags: Array.isArray(l.tags) ? l.tags.filter((t) => typeof t === 'string').slice(0, 10).map((t) => t.slice(0, 24)) : [],
+      ...(Number.isFinite(l.current) && Number.isFinite(l.target) ? { current: l.current, target: l.target } : {}),
+      ...(Number.isFinite(l.at) ? { at: l.at } : {}),
+    };
+  }
+  return { habits, logs };
+}
+
+export function replaceAll({ habits, logs }) {
+  state = { habits, logs, notified: {} };
+  save();
+}

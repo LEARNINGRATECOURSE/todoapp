@@ -38,22 +38,22 @@
 .icon { width: 1.5rem; height: 1.5rem; fill: none; stroke: currentColor; stroke-width: 2.75; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 .icon-circle {
   display: inline-grid; place-items: center; width: 2.5rem; height: 2.5rem;
-  border: var(--bw-thin) solid var(--pencil); border-radius: var(--wobble-blob); background: var(--white);
+  border: var(--bw-thin) solid var(--pencil); border-radius: var(--wobble-blob); background: var(--surface);
 }
 
 /* ---------- Buttons ---------- */
 .btn {
   min-height: var(--tap); min-width: var(--tap); padding: .45rem 1.1rem;
   display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
-  background: var(--white); color: var(--pencil);
+  background: var(--surface); color: var(--pencil);
   border: var(--bw) solid var(--pencil); border-radius: var(--wobble-md);
   box-shadow: var(--shadow); text-decoration: none; line-height: 1.1;
   transition: transform var(--t-fast) var(--ease-snap), box-shadow var(--t-fast), background-color var(--t-fast), color var(--t-fast);
 }
-.btn:hover { background: var(--pen-blue); color: var(--white); transform: translate(2px, 2px) rotate(-.6deg); box-shadow: var(--shadow-sm); }
+.btn:hover { background: var(--pen-blue); color: var(--on-accent); transform: translate(2px, 2px) rotate(-.6deg); box-shadow: var(--shadow-sm); }
 .btn--danger:hover { background: var(--marker-red); color: var(--on-red); }
 .btn:active { transform: translate(4px, 4px); box-shadow: 0 0 0 var(--pencil); }
-.btn--on { background: var(--pen-blue); color: var(--white); }
+.btn--on { background: var(--pen-blue); color: var(--on-accent); }
 .btn--on:hover { background: var(--pencil); }
 .btn--small { min-height: var(--tap); padding: .3rem .8rem; font-size: 1.1rem; box-shadow: var(--shadow-sm); }
 .btn[disabled] { opacity: .55; pointer-events: none; }
@@ -61,7 +61,7 @@
 
 /* ---------- Cards, sticky notes, decoration ---------- */
 .card {
-  position: relative; background: var(--white); padding: 1.1rem 1.1rem 1rem;
+  position: relative; background: var(--surface); padding: 1.1rem 1.1rem 1rem;
   border: var(--bw) solid var(--pencil); border-radius: var(--wobble-lg);
   box-shadow: var(--shadow);
   transition: transform var(--t-fast) var(--ease-snap);
@@ -71,7 +71,7 @@
 .card:hover { transform: rotate(0) translateY(-2px); animation: jiggle .4s var(--ease-snap); }
 .card--done { background: var(--tint-green); }
 .card--skip { background: var(--tint-red); }
-.card--miss { background: var(--white); }
+.card--miss { background: var(--surface); }
 .card--up { background: var(--tint-blue); }
 .card--dashed { border-style: dashed; box-shadow: none; background: transparent; }
 
@@ -85,7 +85,7 @@
 .taped::before {
   content: ""; position: absolute; top: -14px; left: 50%; width: 84px; height: 26px;
   transform: translateX(-50%) rotate(-3deg);
-  background: rgba(229, 224, 216, .85); border: 1px dashed var(--ink-soft);
+  background: var(--tape); border: 1px dashed var(--ink-soft);
 }
 .pinned::before {
   content: ""; position: absolute; top: -10px; left: 18px; width: 18px; height: 18px;
@@ -96,11 +96,11 @@
 
 .bubble {
   position: relative; display: inline-block; padding: .35rem .9rem; margin-top: .4rem;
-  background: var(--white); border: var(--bw-thin) solid var(--pencil); border-radius: var(--wobble-md);
+  background: var(--surface); border: var(--bw-thin) solid var(--pencil); border-radius: var(--wobble-md);
 }
 .bubble::before { /* tail */
   content: ""; position: absolute; left: 22px; top: -9px; width: 14px; height: 14px;
-  background: var(--white); border-left: var(--bw-thin) solid var(--pencil); border-top: var(--bw-thin) solid var(--pencil);
+  background: var(--surface); border-left: var(--bw-thin) solid var(--pencil); border-top: var(--bw-thin) solid var(--pencil);
   transform: rotate(45deg);
 }
 .bubble--side { margin: 0; flex: 1 1 8rem; }
@@ -121,7 +121,7 @@
 .stamp {
   display: inline-flex; align-items: center; gap: .4rem; font-family: var(--font-head); font-weight: 700;
   padding: .1rem .8rem; border: var(--bw) solid var(--pen-blue); color: var(--pen-blue);
-  border-radius: var(--wobble-sm); transform: rotate(-3deg); background: var(--white);
+  border-radius: var(--wobble-sm); transform: rotate(-3deg); background: var(--surface);
 }
 .stamp--done { border-color: var(--done-green); color: var(--done-green); }
 .stamp--skip { border-color: var(--red-ink); color: var(--red-ink); border-style: dashed; }
@@ -149,12 +149,12 @@
 .chips { display: flex; flex-wrap: wrap; gap: .5rem; border: 0; padding: 0; margin: 0; min-width: 0; }
 .chip {
   min-height: var(--tap); padding: .2rem 1rem; display: inline-flex; align-items: center; gap: .4rem;
-  background: var(--white); border: var(--bw-thin) solid var(--pencil); border-radius: var(--wobble-md);
+  background: var(--surface); border: var(--bw-thin) solid var(--pencil); border-radius: var(--wobble-md);
   box-shadow: var(--shadow-sm); cursor: pointer; user-select: none;
   transition: transform var(--t-fast) var(--ease-snap), background-color var(--t-fast);
 }
 .chip:hover { transform: rotate(-2deg) translateY(-1px); background: var(--sticky); }
-.chip[aria-pressed="true"], .chip:has(input:checked) { background: var(--pen-blue); color: var(--white); transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--pencil); }
+.chip[aria-pressed="true"], .chip:has(input:checked) { background: var(--pen-blue); color: var(--on-accent); transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--pencil); }
 .chip input { position: absolute; opacity: 0; pointer-events: none; }
 .chip:has(input:focus-visible) { outline: 3px dashed var(--pen-blue); outline-offset: 3px; }
 .panel { margin-top: .9rem; padding: .9rem; border: var(--bw-thin) dashed var(--pencil); border-radius: var(--wobble-md); background: var(--paper); display: grid; gap: .75rem; }
@@ -164,7 +164,7 @@
 .field { display: grid; gap: .3rem; border: 0; padding: 0; margin: 0; min-width: 0; }
 .field > label, .field > legend { font-family: var(--font-head); font-weight: 700; padding: 0; }
 .input {
-  width: 100%; min-height: var(--tap); padding: .4rem .9rem; background: var(--white);
+  width: 100%; min-height: var(--tap); padding: .4rem .9rem; background: var(--surface);
   border: var(--bw-thin) solid var(--pencil); border-radius: var(--wobble-md);
 }
 .input--inline { width: auto; flex: 1 1 9rem; min-width: 0; }
@@ -186,11 +186,11 @@ dialog form { display: grid; gap: 1rem; }
 
 /* ---------- History ---------- */
 /* Shared status look: green done, red skipped, blue upcoming. Glyphs/patterns back up the colour. */
-.st-done { background: var(--done-green); color: var(--white); }
+.st-done { background: var(--done-green); color: var(--on-accent); }
 .st-skip { background: var(--marker-red); color: var(--on-red); }
 .st-up { background: var(--tint-blue); border-color: var(--pen-blue) !important; color: var(--pen-blue); }
-.st-miss { background: var(--white); border-style: dashed !important; border-color: var(--ink-soft) !important; }
-.st-part { background: linear-gradient(to top, var(--tint-green) 50%, var(--white) 50%); border-style: dashed !important; }
+.st-miss { background: var(--surface); border-style: dashed !important; border-color: var(--ink-soft) !important; }
+.st-part { background: linear-gradient(to top, var(--tint-green) 50%, var(--surface) 50%); border-style: dashed !important; }
 .st-rest, .st-out { background: transparent; border-style: dotted !important; border-color: var(--paper-muted) !important; color: var(--ink-soft); }
 .st-out { opacity: .55; }
 
@@ -214,9 +214,9 @@ button.cal-day:hover { transform: rotate(-3deg) scale(1.06); }
 .legend .key { display: inline-block; width: 1.1rem; height: 1.1rem; vertical-align: -.2rem; margin-right: .3rem; border: var(--bw-thin) solid var(--pencil); border-radius: var(--wobble-blob); }
 
 .dots { display: flex; flex-wrap: wrap; gap: 5px; }
-.dots i { width: 16px; height: 16px; border: 2px solid var(--pencil); border-radius: var(--wobble-blob); background: var(--white); }
+.dots i { width: 16px; height: 16px; border: 2px solid var(--pencil); border-radius: var(--wobble-blob); background: var(--surface); }
 
-.bar { height: 1.1rem; background: var(--white); border: var(--bw-thin) solid var(--pencil); border-radius: var(--wobble-sm); overflow: hidden; }
+.bar { height: 1.1rem; background: var(--surface); border: var(--bw-thin) solid var(--pencil); border-radius: var(--wobble-sm); overflow: hidden; }
 .bar > i { display: block; height: 100%; background: var(--pen-blue); }
 .list { list-style: none; margin: 0; padding: 0; display: grid; gap: .9rem; }
 .week-row { display: grid; gap: .3rem; }
@@ -239,3 +239,14 @@ button.cal-day:hover { transform: rotate(-3deg) scale(1.06); }
   .deco { display: none; }
   .tab span { font-size: .95rem; }
 }
+
+/* ---------- Settings ---------- */
+.setting { display: grid; gap: .4rem; }
+.setting + .setting { margin-top: .9rem; }
+.setting-label { font-family: var(--font-head); font-weight: 700; }
+.notice { padding: .6rem .9rem; background: var(--sticky); border: var(--bw-thin) solid var(--pencil); border-radius: var(--wobble-md); }
+
+/* ---------- Calm mode: no tape, pins, tilts or jiggles ---------- */
+:root[data-calm="1"] :is(.card, .sticky, .stamp, .tab, .chip, .flag, .app-header h1, .btn, button.cal-day) { transform: none !important; }
+:root[data-calm="1"] :is(.taped, .pinned)::before { display: none; }
+:root[data-calm="1"] * { animation: none !important; }

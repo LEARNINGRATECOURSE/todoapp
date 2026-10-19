@@ -2,6 +2,7 @@
 import { icon, circled } from './icons.js';
 import { key, today, parse, isEnded, occursOn, dayStatus, chain, completion30, journey, calendarDay, addDays, weekly, tagInsights, logKey, PROGRESS_DAYS } from './stats.js';
 import * as reminders from './reminders.js';
+import { getPrefs, timeOpts } from './prefs.js';
 
 export const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
@@ -17,7 +18,8 @@ const scheduleLabel = (h) => {
     h.target && `${h.target} ${h.unit || 'times'}`,
     h.endDate && `${isEnded(h, today()) ? 'ended' : 'until'} ${fmtDate(h.endDate)}${h.endAfter ? ` (${h.endAfter} times)` : ''}`].filter(Boolean).join(' · ');
 };
-const fmtTime = (hhmm) => new Date(`1970-01-01T${hhmm}`).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+const fmtTime = (hhmm) => new Date(`1970-01-01T${hhmm}`).toLocaleTimeString([], timeOpts());
+const weekdays = () => (getPrefs().weekStart === 0 ? [WEEKDAYS[6], ...WEEKDAYS.slice(0, 6)] : WEEKDAYS);
 const fmtDate = (k, year) => new Date(`${k}T00:00`).toLocaleDateString([], { month: 'short', day: 'numeric', ...(year && { year: 'numeric' }) });
 const btn = (action, label, ic, extra = '', cls = '') =>
   `<button type="button" class="btn ${cls}" data-action="${action}" ${extra}>${icon(ic)}<span>${label}</span></button>`;
@@ -84,7 +86,7 @@ function todayCard(h, state, ui, now, day) {
     ${h.target && !skipped ? stepper(h, log, id) : ''}
     ${settled ? `
       <div class="row">
-        <p class="bubble bubble--side small">${done ? cheer(h.id) : 'Rest day. Chain is safe.'}${log.at ? ` · ${esc(new Date(log.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))}` : ''}</p>
+        <p class="bubble bubble--side small">${done ? cheer(h.id) : 'Rest day. Chain is safe.'}${log.at ? ` · ${esc(new Date(log.at).toLocaleTimeString([], timeOpts()))}` : ''}</p>
         ${btn('undo', 'Undo', 'undo', `${id} data-fid="undo-${esc(h.id)}"`, 'btn--small')}
       </div>
     ` : `
@@ -169,7 +171,7 @@ export function editorForm(h) {
     </div>
     <fieldset class="field"><legend>Schedule</legend>
       <div class="chips">
-        ${WEEKDAYS.map(([n, d]) => `<label class="chip"><input type="checkbox" name="day" value="${d}" ${days.includes(d) ? 'checked' : ''}>${n}</label>`).join('')}
+        ${weekdays().map(([n, d]) => `<label class="chip"><input type="checkbox" name="day" value="${d}" ${days.includes(d) ? 'checked' : ''}>${n}</label>`).join('')}
       </div>
       ${err('f-days-err', 'Pick at least one day.')}</fieldset>
     <div class="field"><label for="f-every">Repeats</label>
@@ -205,7 +207,7 @@ function calendar(h, state, ui, jr) {
   const lo = MONTH(jr.start), hi = MONTH(jr.end);
   const cur = ui.calMonth = Math.min(hi, Math.max(lo, ui.calMonth ?? MONTH(now)));
   const first = new Date(Math.floor(cur / 12), cur % 12, 1);
-  const cells = Array.from({ length: (first.getDay() + 6) % 7 }, () => '<div aria-hidden="true"></div>');
+  const cells = Array.from({ length: (first.getDay() - getPrefs().weekStart + 7) % 7 }, () => '<div aria-hidden="true"></div>');
   for (let d = first; d.getMonth() === first.getMonth(); d = addDays(d, 1)) {
     const s = calendarDay(h, state.logs, d, jr, now);
     const isStart = d.getTime() === jr.start.getTime(), isEnd = d.getTime() === jr.end.getTime();
@@ -224,7 +226,7 @@ function calendar(h, state, ui, jr) {
       <button type="button" class="btn btn--small" data-action="cal-step" data-delta="1" aria-label="Next month" ${cur >= hi ? 'disabled' : ''}>${icon('chevron-right')}</button>
     </div>
     <div class="cal" role="group" aria-label="Planned days, ${esc(range)}">
-      ${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((n) => `<span class="cal-head" aria-hidden="true">${n}</span>`).join('')}${cells.join('')}
+      ${weekdays().map(([n]) => n).map((n) => `<span class="cal-head" aria-hidden="true">${n}</span>`).join('')}${cells.join('')}
     </div>
     <p class="small muted" style="margin-top:.6rem">Tap a planned day to log it or fix it.</p>
     <div class="legend" aria-hidden="true">
@@ -250,7 +252,7 @@ export function historyView(state, ui) {
   if (!habits.length) return `<div class="card card--dashed empty">${circled('calendar')}<h3>Nothing to look back on yet</h3><p>Your history will fill in as you log.</p></div>`;
   const h = habits.find((x) => x.id === ui.historyId) ?? habits[0];
   const c = chain(h, state.logs), pct = completion30(h, state.logs), jr = journey(h, state.logs);
-  const summary = weekly(habits, state.logs);
+  const summary = weekly(habits, state.logs, today(), getPrefs().weekStart);
   return `<div class="stack">
     <h2>History</h2>
     <div class="chips" role="group" aria-label="Choose a habit">
@@ -271,17 +273,34 @@ export function historyView(state, ui) {
 }
 
 /* ---------------- Settings ---------------- */
-export function settingsView() {
+const choice = (name, label, options, current) => `<div class="setting"><div class="setting-label" id="s-${name}">${label}</div>
+  <div class="chips" role="group" aria-labelledby="s-${name}">${options.map(([v, t]) => `<button type="button" class="chip" data-action="pref" data-key="${name}" data-value="${esc(JSON.stringify(v))}" data-fid="pref-${name}-${esc(v)}" aria-pressed="${current === v}">${t}</button>`).join('')}</div></div>`;
+
+export function settingsView(state, ui) {
+  const p = getPrefs();
   const perm = reminders.permission();
   const notifBtn = perm === 'granted' ? '<p>Reminders are on. ✓</p>'
     : perm === 'denied' ? '<p class="muted">Notifications are blocked. Change this in your browser or phone settings.</p>'
     : perm === 'unsupported' ? '<p class="muted">This browser can\'t show notifications.</p>'
     : btn('enable-notifs', 'Turn on reminders', 'bell');
+  const section = (title, body) => `<section class="card"><h3>${title}</h3><div style="margin-top:.7rem">${body}</div></section>`;
   return `<div class="stack"><h2>Settings</h2>
-    <section class="card"><h3>Reminders</h3><div class="stack stack--tight" style="margin-top:.6rem">${notifBtn}
-      <p class="small muted">On iPhone and iPad, reminders only work after you add this app to your Home Screen (iOS 16.4+). They fire while the app is open or recently active.</p></div></section>
-    <section class="card"><h3>Your data</h3><div class="stack stack--tight" style="margin-top:.6rem">
-      <p class="small muted">Everything lives on this device. No accounts, ads, or trackers.</p>
-      <div class="actions">${btn('export', 'Export CSV', 'download')}${btn('wipe', 'Delete all data', 'trash', '', 'btn--danger')}</div></div></section>
+    ${ui.notice ? `<p class="notice" role="status">${esc(ui.notice)}</p>` : ''}
+    ${section('Appearance',
+      choice('theme', 'Theme', [['system', 'Match device'], ['light', 'Light'], ['dark', 'Dark']], p.theme)
+      + choice('text', 'Text size', [['normal', 'Normal'], ['large', 'Large']], p.text)
+      + choice('calm', 'Calm mode', [[false, 'Off'], [true, 'On']], p.calm)
+      + '<p class="hint" style="margin-top:.5rem">Calm mode removes the tape, pins, tilts and jiggles for a quieter page.</p>')}
+    ${section('Preferences',
+      choice('weekStart', 'Week starts on', [[1, 'Monday'], [0, 'Sunday']], p.weekStart)
+      + choice('time', 'Time format', [['auto', 'Match device'], ['12', '12-hour'], ['24', '24-hour']], p.time))}
+    ${section('Reminders', `<div class="stack stack--tight">${notifBtn}
+      <p class="small muted">On iPhone and iPad, reminders only work after you add this app to your Home Screen (iOS 16.4+). They fire while the app is open or recently active.</p></div>`)}
+    ${section('Your data', `<div class="stack stack--tight">
+      <p class="small muted">Everything lives on this device. No accounts, ads, or trackers. Make a backup before switching phones.</p>
+      <div class="actions" style="margin:0">${btn('export', 'Export CSV', 'download')}${btn('backup', 'Back up (JSON)', 'download')}${btn('restore', 'Restore backup', 'undo')}</div>
+      <div class="actions" style="margin:0">${btn('wipe', 'Delete all data', 'trash', '', 'btn--danger')}</div></div>`)}
+    ${section('About', `<p>Scribble Habits · a forgiving habit tracker.</p>
+      <p class="small muted" style="margin-top:.4rem">Skips and rest days never break your progress. Habits take about 66 days on average to feel automatic (Lally et al., 2010).</p>`)}
   </div>`;
 }

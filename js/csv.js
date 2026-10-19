@@ -12,8 +12,8 @@ export function toCsv({ habits, logs }) {
   return [['date', 'habit', 'status', 'current', 'target', 'resistance', 'tags'], ...rows].map((r) => r.map(cell).join(',')).join('\n');
 }
 
-export function download(filename, text) {
-  const url = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }));
+export function download(filename, text, type = 'text/csv;charset=utf-8') {
+  const url = URL.createObjectURL(new Blob([text], { type }));
   const a = Object.assign(document.createElement('a'), { href: url, download: filename });
   document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);

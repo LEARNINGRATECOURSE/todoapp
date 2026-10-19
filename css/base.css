@@ -38,7 +38,7 @@ button { cursor: pointer; }
 
 .skip-link {
   position: absolute; left: .5rem; top: -4rem; z-index: 50;
-  background: var(--white); border: var(--bw) solid var(--pencil);
+  background: var(--surface); border: var(--bw) solid var(--pencil);
   border-radius: var(--wobble-sm); padding: .5rem 1rem;
 }
 .skip-link:focus { top: .5rem; }

@@ -1,7 +1,7 @@
 // Cache-first app shell so logging works offline; fonts are cached on first use.
-const CACHE = 'scribble-habits-v5';
+const CACHE = 'scribble-habits-v6';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'css/tokens.css', 'css/base.css', 'css/components.css',
-  'js/app.js', 'js/views.js', 'js/stats.js', 'js/store.js', 'js/csv.js', 'js/icons.js', 'js/reminders.js',
+  'js/app.js', 'js/views.js', 'js/stats.js', 'js/store.js', 'js/csv.js', 'js/icons.js', 'js/reminders.js', 'js/prefs.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-180.png'];
 
 self.addEventListener('install', (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())));

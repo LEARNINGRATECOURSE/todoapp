@@ -6,7 +6,9 @@
   --paper-muted: #e5e0d8;
   --marker-red: #ff4d4d;
   --pen-blue: #2d5da1;
-  --white: #fff;
+  --surface: #fff; /* cards, inputs, buttons */
+  --on-accent: #fff; /* text on blue/green fills */
+  --tape: rgba(229, 224, 216, .85);
   --sticky: #fff9c4;
 
   /* Status colours: done = green, skipped = red, upcoming = blue */
@@ -43,4 +45,27 @@
   --gap: 1rem;
   --ease-snap: cubic-bezier(.3, 1.5, .5, 1);
   --t-fast: 120ms;
+}
+
+/* Text size preference */
+:root[data-text="large"] { font-size: 118%; }
+
+/* Dark theme ("sketching at night"). JS resolves System to light or dark, so this is the only dark block. */
+:root { color-scheme: light; }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #1e1c19;
+  --pencil: #f1ece2;
+  --paper-muted: #38342e;
+  --surface: #2a2723;
+  --on-accent: #14161a;
+  --sticky: #54481b;
+  --tape: rgba(120, 112, 100, .7);
+  --pen-blue: #8db4ee;
+  --done-green: #62c98c;
+  --tint-green: #1f3a2b;
+  --tint-red: #4a2326;
+  --tint-blue: #1f3252;
+  --ink-soft: #b9b2a6;
+  --red-ink: #ff8f8f;
 }

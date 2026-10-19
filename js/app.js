@@ -1,4 +1,5 @@
-import { getState, saveHabit, deleteHabit, setLog, clearLog, wipe } from './store.js';
+import { getState, saveHabit, deleteHabit, setLog, clearLog, wipe, parseBackup, replaceAll } from './store.js';
+import { apply as applyPrefs, setPref, clearPrefs } from './prefs.js';
 import { key, today, logKey, parse, addDays } from './stats.js';
 import { todayView, habitsView, historyView, settingsView, editorForm } from './views.js';
 import { toCsv, download } from './csv.js';
@@ -10,7 +11,7 @@ const main = $('#main');
 const editor = $('#editor');
 const confirmDlg = $('#confirm');
 
-const ui = { view: 'today', panel: null, draft: { resistance: null, tags: [] }, historyId: null, date: null, calMonth: null, justLogged: null };
+const ui = { view: 'today', panel: null, draft: { resistance: null, tags: [] }, historyId: null, notice: '', date: null, calMonth: null, justLogged: null };
 let renderedDay = key(today());
 
 function render(focusId) {
@@ -21,7 +22,7 @@ function render(focusId) {
 }
 
 function go(view) {
-  ui.view = view; ui.panel = null;
+  ui.view = view; ui.panel = null; ui.notice = '';
   render();
   main.focus({ preventScroll: true });
   window.scrollTo(0, 0);
@@ -110,9 +111,15 @@ const actions = {
   },
   'close-dialog': () => editor.close(),
   export: () => download(`habits-${key(today())}.csv`, toCsv(getState())),
+  pref(el) { setPref(el.dataset.key, JSON.parse(el.dataset.value)); render(); },
+  backup() {
+    const { habits, logs } = getState();
+    download(`habits-backup-${key(today())}.json`, JSON.stringify({ app: 'scribble-habits', version: 1, exportedAt: new Date().toISOString(), habits, logs }, null, 2), 'application/json');
+  },
+  restore: () => $('#restore-file').click(),
   async wipe() {
     if (await ask('This permanently deletes every habit and log on this device. It can\'t be undone.', 'Delete everything')) {
-      wipe(); location.reload();
+      wipe(); clearPrefs(); location.reload();
     }
   },
   async 'enable-notifs'() { await reminders.request(); render(); },
@@ -156,6 +163,16 @@ document.addEventListener('submit', (e) => {
   render();
 });
 
+$('#restore-file').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  const backup = parseBackup(await file.text());
+  if (!backup) { ui.notice = "That file isn't a Scribble Habits backup, so nothing was changed."; return render(); }
+  const msg = `Replace everything on this device with this backup (${backup.habits.length} habits, ${Object.keys(backup.logs).length} entries)?`;
+  if (await ask(msg, 'Restore backup', 'Cancel')) { replaceAll(backup); ui.notice = 'Backup restored.'; render(); }
+});
+
 // Typing in an "Ends" input selects its radio
 document.addEventListener('focusin', (e) => {
   if (e.target.name === 'endDate' || e.target.name === 'endAfter') e.target.closest('label').querySelector('input[type=radio]').checked = true;
@@ -169,6 +186,7 @@ const rollover = () => { const k = key(today()); if (k !== renderedDay) { render
 document.addEventListener('visibilitychange', () => { if (!document.hidden) rollover(); });
 setInterval(rollover, 60_000);
 
+applyPrefs();
 render();
 reminders.startReminders(getState);
 
