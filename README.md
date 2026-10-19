@@ -12,3 +12,9 @@ python3 -m http.server 8000   # or any static server; service workers need local
 
 Known v1 limits: data is on-device only (no cloud sync), and reminders fire while the app/service worker
 is alive; true background push needs a push server.
+
+## Deploying
+
+`.github/workflows/pages.yml` publishes the site to GitHub Pages on every push to `main`. One-time setup:
+**Settings → Pages → Build and deployment → Source: GitHub Actions**. The app uses only relative paths,
+so it works from the `/todoapp/` project URL.
