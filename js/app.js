@@ -129,6 +129,11 @@ const actions = {
     }
   },
   async 'enable-notifs'() { await reminders.request(); render(); },
+  async 'test-notif'() {
+    const ok = await reminders.notify({ id: 'test', name: 'Test reminder', cue: 'Notifications are working.' });
+    ui.notice = ok ? "Sent! If you didn't see it, check your device's notification and focus/do-not-disturb settings." : "Couldn't show a notification. Check this site's notification permission in your browser settings.";
+    render();
+  },
 };
 
 document.addEventListener('click', (e) => {
@@ -161,6 +166,7 @@ document.addEventListener('submit', (e) => {
   problems.forEach(([err, bad]) => { form.querySelector(err).hidden = !bad; });
   const first = problems.find(([, bad]) => bad);
   if (first) return form.querySelector(first[2]).focus();
+  if (data.get('reminder') && reminders.permission() === 'default') reminders.request().then(() => render()); // ask while we still have the tap
   saveHabit({
     id: data.get('id') || null, name, days, every: Number(data.get('every')), cue: data.get('cue'), reminder: data.get('reminder'),
     endDate, endAfter, target, unit: data.get('unit'), step: Number(data.get('step')) || 1,

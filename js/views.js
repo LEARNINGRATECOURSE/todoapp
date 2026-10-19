@@ -5,6 +5,8 @@ import * as reminders from './reminders.js';
 import { getPrefs, timeOpts } from './prefs.js';
 import { canPrompt, isInstalled, platform } from './install.js';
 
+const remindersOff = (state) => reminders.hasReminders(state.habits) && !['granted', 'unsupported'].includes(reminders.permission());
+
 export const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 export const WEEKDAYS = [['Mon', 1], ['Tue', 2], ['Wed', 3], ['Thu', 4], ['Fri', 5], ['Sat', 6], ['Sun', 0]];
@@ -118,6 +120,7 @@ export function todayView(state, ui) {
       </div>
       <button type="button" class="btn btn--small btn--icon-sm" data-action="day-step" data-delta="1" aria-label="Next day" ${isToday ? 'disabled' : ''}>${icon('chevron-right')}</button>
     </div>
+    ${isToday && remindersOff(state) ? `<div class="notice stack stack--tight" role="status"><span>${reminders.permission() === 'denied' ? 'Reminders are blocked in your browser settings, so you won\'t get notified.' : 'You have reminder times set, but notifications are off.'}</span>${reminders.permission() === 'denied' ? '' : btn('enable-notifs', 'Turn on reminders', 'bell', '', 'btn--small')}</div>` : ''}
     ${isToday ? '' : `<div class="row" style="justify-content:center">${btn('day-today', 'Back to today', 'sun', '', 'btn--small')}</div>`}`;
   if (!state.habits.length) {
     return `<div class="stack">${hero}<div class="card card--dashed empty">
@@ -305,6 +308,7 @@ export function settingsView(state, ui) {
     : perm === 'denied' ? '<p class="muted">Notifications are blocked. Change this in your browser or phone settings.</p>'
     : perm === 'unsupported' ? '<p class="muted">This browser can\'t show notifications.</p>'
     : btn('enable-notifs', 'Turn on reminders', 'bell');
+  const testBtn = perm === 'granted' ? btn('test-notif', 'Send a test notification', 'bell', 'data-fid="test-notif"', 'btn--small') : '';
   const section = (title, body) => `<section class="card"><h3>${title}</h3><div style="margin-top:.7rem">${body}</div></section>`;
   return `<div class="stack"><h2>Settings</h2>
     ${ui.notice ? `<p class="notice" role="status">${esc(ui.notice)}</p>` : ''}
@@ -318,8 +322,9 @@ export function settingsView(state, ui) {
       choice('weekStart', 'Week starts on', [[1, 'Monday'], [0, 'Sunday']], p.weekStart)
       + choice('time', 'Time format', [['auto', 'Match device'], ['12', '12-hour'], ['24', '24-hour']], p.time))}
     ${section('Add to your phone', installBody())}
-    ${section('Reminders', `<div class="stack stack--tight">${notifBtn}
-      <p class="small muted">On iPhone and iPad, reminders only work after you add this app to your Home Screen (iOS 16.4+). They fire while the app is open or recently active.</p></div>`)}
+    ${section('Reminders', `<div class="stack stack--tight">${notifBtn}${testBtn}
+      <p class="small muted">Reminders only fire while the app is running. Phones often pause background apps, so one may arrive late, when you next open the app.</p>
+      <p class="small muted">On iPhone and iPad, reminders only work after you add this app to your Home Screen (iOS 16.4+).</p></div>`)}
     ${section('Your data', `<div class="stack stack--tight">
       <p class="small muted">Everything lives on this device. No accounts, ads, or trackers. Make a backup before switching phones.</p>
       <div class="actions" style="margin:0">${btn('export', 'Export CSV', 'download')}${btn('backup', 'Back up (JSON)', 'download')}${btn('restore', 'Restore backup', 'undo')}</div>
