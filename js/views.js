@@ -1,6 +1,6 @@
 // Views return HTML strings. All user text goes through esc().
 import { icon, circled } from './icons.js';
-import { key, today, isEnded, occursOn, dayStatus, chain, completion30, journey, calendarDay, addDays, weekly, tagInsights, logKey, PROGRESS_DAYS } from './stats.js';
+import { key, today, parse, isEnded, occursOn, dayStatus, chain, completion30, journey, calendarDay, addDays, weekly, tagInsights, logKey, PROGRESS_DAYS } from './stats.js';
 import * as reminders from './reminders.js';
 
 export const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -61,15 +61,16 @@ function stepper(h, log, id) {
   </div>`;
 }
 
-function todayCard(h, state, ui, now) {
-  const log = state.logs[logKey(h.id, key(now))];
+function todayCard(h, state, ui, now, day) {
+  const log = state.logs[logKey(h.id, key(day))];
+  const isToday = day.getTime() === now.getTime();
   const c = chain(h, state.logs, now);
   const open = ui.panel === h.id;
   const id = `data-id="${esc(h.id)}"`;
   const done = log?.status === 'done', skipped = log?.status === 'skip';
   const settled = done || skipped; // a partly-counted habit is still upcoming
-  const st = done ? 'done' : skipped ? 'skip' : 'up'; // done (green) · skip (red) · up (blue)
-  const stampHtml = `<span class="stamp stamp--${st}">${icon({ done: 'check', skip: 'skip', up: 'calendar' }[st])} ${{ done: 'Done', skip: 'Skipped', up: 'Upcoming' }[st]}</span>`;
+  const st = done ? 'done' : skipped ? 'skip' : isToday ? 'up' : 'miss'; // done (green) · skip (red) · up (blue) · miss (a past day not logged yet)
+  const stampHtml = `<span class="stamp stamp--${st}">${icon({ done: 'check', skip: 'skip', up: 'calendar', miss: 'pencil' }[st])} ${{ done: 'Done', skip: 'Skipped', up: 'Upcoming', miss: 'Not logged' }[st]}</span>`;
   return `<li class="card card--${st} ${ui.justLogged === h.id ? 'just-logged' : ''}" ${id}>
     <div class="habit-head">
       <h3 class="habit-name">${esc(h.name)}</h3>${stampHtml}
@@ -98,21 +99,30 @@ function todayCard(h, state, ui, now) {
 
 export function todayView(state, ui) {
   const now = today();
-  const dateStr = now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
-  const habits = state.habits.filter((h) => occursOn(h, now) && !isEnded(h, now))
+  const day = ui.date ? parse(ui.date) : now; // the day being viewed: today, or a past day you're catching up on
+  const isToday = day.getTime() === now.getTime();
+  const earliest = state.habits.reduce((m, h) => (h.createdAt < m ? h.createdAt : m), key(now));
+  const dateStr = day.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  const habits = state.habits.filter((h) => occursOn(h, day) && !isEnded(h, day) && day >= parse(h.createdAt))
     .sort((a, b) => (a.reminder || '99:99').localeCompare(b.reminder || '99:99'));
-  const logged = habits.filter((h) => ['done', 'skip'].includes(state.logs[logKey(h.id, key(now))]?.status)).length;
-  const hero = `<div class="sticky taped">
-      <h2>${esc(dateStr)}</h2>
-      <p>${!habits.length ? 'Nothing scheduled today.' : logged === habits.length ? 'All logged. Go enjoy your day!' : `${logged} of ${habits.length} logged. Missed days are normal here.`}</p>
-    </div>`;
+  const logged = habits.filter((h) => ['done', 'skip'].includes(state.logs[logKey(h.id, key(day))]?.status)).length;
+  const dayWord = isToday ? 'today' : 'that day';
+  const hero = `<div class="daynav">
+      <button type="button" class="btn btn--small btn--icon-sm" data-action="day-step" data-delta="-1" aria-label="Previous day" ${key(day) <= earliest ? 'disabled' : ''}>${icon('chevron-left')}</button>
+      <div class="sticky taped">
+        <h2>${esc(dateStr)}</h2>
+        <p>${!habits.length ? `Nothing scheduled ${dayWord}.` : logged === habits.length ? (isToday ? 'All logged. Go enjoy your day!' : 'All caught up for this day.') : isToday ? `${logged} of ${habits.length} logged. Missed days are normal here.` : `Catching up: ${logged} of ${habits.length} logged.`}</p>
+      </div>
+      <button type="button" class="btn btn--small btn--icon-sm" data-action="day-step" data-delta="1" aria-label="Next day" ${isToday ? 'disabled' : ''}>${icon('chevron-right')}</button>
+    </div>
+    ${isToday ? '' : `<div class="row" style="justify-content:center">${btn('day-today', 'Back to today', 'sun', '', 'btn--small')}</div>`}`;
   if (!state.habits.length) {
     return `<div class="stack">${hero}<div class="card card--dashed empty">
       ${circled('sparkles')}<h3>A blank page!</h3><p>Add your first habit. Three to six is plenty.</p>
       ${btn('new-habit', 'Add a habit', 'plus', '', 'btn--wide')}</div></div>`;
   }
   return `<div class="stack">${hero}
-    <ul class="list" aria-label="Today's habits">${habits.map((h, i) => todayCard(h, state, ui, now).replace('<li class="card', `<li class="card ${i % 3 === 0 ? 'pinned' : i % 3 === 1 ? 'taped' : ''}`)).join('')}</ul></div>`;
+    <ul class="list" aria-label="Today's habits">${habits.map((h, i) => todayCard(h, state, ui, now, day).replace('<li class="card', `<li class="card ${i % 3 === 0 ? 'pinned' : i % 3 === 1 ? 'taped' : ''}`)).join('')}</ul></div>`;
 }
 
 /* ---------------- Habits ---------------- */
@@ -200,9 +210,11 @@ function calendar(h, state, ui, jr) {
     const s = calendarDay(h, state.logs, d, jr, now);
     const isStart = d.getTime() === jr.start.getTime(), isEnd = d.getTime() === jr.end.getTime();
     const label = `${d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}: ${[isStart && 'start', isEnd && 'end', STATUS_WORDS[s]].filter(Boolean).join(', ')}`;
-    cells.push(`<div class="cal-day st-${s} ${d.getTime() === now.getTime() ? 'is-today' : ''}" role="listitem" aria-label="${esc(label)}">
+    const canEdit = ['done', 'skip', 'miss', 'part', 'up'].includes(s) && d <= now; // tap a planned day to log or fix it
+    const tag = canEdit ? `button type="button" data-action="open-day" data-date="${key(d)}"` : 'div';
+    cells.push(`<${tag} class="cal-day st-${s} ${d.getTime() === now.getTime() ? 'is-today' : ''}" aria-label="${esc(label + (canEdit ? '. Tap to edit' : ''))}">
       <span>${d.getDate()}</span>${s === 'done' ? icon('check') : s === 'skip' ? icon('skip') : ''}
-      ${isStart ? '<b class="flag">Start</b>' : isEnd ? '<b class="flag">End</b>' : ''}</div>`);
+      ${isStart ? '<b class="flag">Start</b>' : isEnd ? '<b class="flag">End</b>' : ''}</${canEdit ? 'button' : 'div'}>`);
   }
   const range = `${fmtDate(key(jr.start))} to ${fmtDate(key(jr.end))}`;
   return `<p class="small"><strong>Start</strong> ${esc(fmtDate(key(jr.start), true))} &rarr; <strong>End</strong> ${esc(fmtDate(key(jr.end), true))}${jr.hasEnd ? '' : ` <span class="muted">(your ${PROGRESS_DAYS}th planned day)</span>`}</p>
@@ -211,9 +223,10 @@ function calendar(h, state, ui, jr) {
       <h4 class="cal-title" aria-live="polite">${esc(first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }))}</h4>
       <button type="button" class="btn btn--small" data-action="cal-step" data-delta="1" aria-label="Next month" ${cur >= hi ? 'disabled' : ''}>${icon('chevron-right')}</button>
     </div>
-    <div class="cal" role="list" aria-label="Planned days, ${esc(range)}">
+    <div class="cal" role="group" aria-label="Planned days, ${esc(range)}">
       ${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((n) => `<span class="cal-head" aria-hidden="true">${n}</span>`).join('')}${cells.join('')}
     </div>
+    <p class="small muted" style="margin-top:.6rem">Tap a planned day to log it or fix it.</p>
     <div class="legend" aria-hidden="true">
       <span><i class="key st-done"></i>Done</span><span><i class="key st-skip"></i>Skipped</span><span><i class="key st-up"></i>Upcoming</span><span><i class="key st-part"></i>Partly</span>
       <span><i class="key st-miss"></i>Missed</span><span><i class="key st-rest"></i>Off day</span>

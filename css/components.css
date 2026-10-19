@@ -71,6 +71,7 @@
 .card:hover { transform: rotate(0) translateY(-2px); animation: jiggle .4s var(--ease-snap); }
 .card--done { background: var(--tint-green); }
 .card--skip { background: var(--tint-red); }
+.card--miss { background: var(--white); }
 .card--up { background: var(--tint-blue); }
 .card--dashed { border-style: dashed; box-shadow: none; background: transparent; }
 
@@ -124,7 +125,13 @@
 }
 .stamp--done { border-color: var(--done-green); color: var(--done-green); }
 .stamp--skip { border-color: var(--red-ink); color: var(--red-ink); border-style: dashed; }
+.stamp--miss { border-color: var(--ink-soft); color: var(--ink-soft); border-style: dotted; }
 .stamp--up { border-color: var(--pen-blue); color: var(--pen-blue); }
+
+/* ---------- Day picker on the Today screen ---------- */
+.daynav { display: flex; align-items: center; gap: .6rem; }
+.daynav .sticky { flex: 1; min-width: 0; }
+.btn--icon-sm { padding: 0; width: var(--tap); flex: none; }
 
 /* ---------- Counter stepper + tally marks ---------- */
 .stepper { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin: .5rem 0; }
@@ -194,6 +201,8 @@ dialog form { display: grid; gap: 1rem; }
   position: relative; min-height: var(--tap); display: grid; place-items: center; align-content: center; gap: 0;
   border: var(--bw-thin) solid var(--pencil); border-radius: var(--wobble-sm); line-height: 1;
 }
+button.cal-day { font: inherit; padding: 0; cursor: pointer; transition: transform var(--t-fast) var(--ease-snap); }
+button.cal-day:hover { transform: rotate(-3deg) scale(1.06); }
 .cal-day .icon { width: .85rem; height: .85rem; stroke-width: 3.5; margin-top: -2px; }
 .cal-day.is-today { outline: 3px dashed var(--pencil); outline-offset: 2px; }
 .flag {

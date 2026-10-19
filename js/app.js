@@ -1,5 +1,5 @@
 import { getState, saveHabit, deleteHabit, setLog, clearLog, wipe } from './store.js';
-import { key, today, logKey } from './stats.js';
+import { key, today, logKey, parse, addDays } from './stats.js';
 import { todayView, habitsView, historyView, settingsView, editorForm } from './views.js';
 import { toCsv, download } from './csv.js';
 import * as reminders from './reminders.js';
@@ -10,7 +10,7 @@ const main = $('#main');
 const editor = $('#editor');
 const confirmDlg = $('#confirm');
 
-const ui = { view: 'today', panel: null, draft: { resistance: null, tags: [] }, historyId: null, calMonth: null, justLogged: null };
+const ui = { view: 'today', panel: null, draft: { resistance: null, tags: [] }, historyId: null, date: null, calMonth: null, justLogged: null };
 let renderedDay = key(today());
 
 function render(focusId) {
@@ -45,12 +45,23 @@ function ask(message, okLabel, cancelLabel = 'Keep my data') {
 }
 
 const habitOf = (id) => getState().habits.find((h) => h.id === id);
-const todaysLog = (id) => getState().logs[logKey(id, key(today()))];
+// The day being logged: today unless the user stepped back to catch up on an earlier day
+const viewKey = () => ui.date ?? key(today());
+const todaysLog = (id) => getState().logs[logKey(id, viewKey())];
 // Check-in answers come from the open panel if there is one, otherwise whatever was already saved
 const feltFor = (id, prev) => (ui.panel === id ? ui.draft : { resistance: prev?.resistance ?? null, tags: prev?.tags ?? [] });
 
 const actions = {
-  nav: (el) => go(el.dataset.view),
+  nav(el) { ui.date = null; go(el.dataset.view); },
+  'day-step'(el) {
+    const earliest = getState().habits.reduce((m, h) => (h.createdAt < m ? h.createdAt : m), key(today()));
+    const next = key(addDays(parse(viewKey()), Number(el.dataset.delta)));
+    ui.date = next >= key(today()) ? null : next < earliest ? ui.date : next;
+    ui.panel = null;
+    render();
+  },
+  'day-today'() { ui.date = null; ui.panel = null; render(); },
+  'open-day'(el) { ui.date = el.dataset.date === key(today()) ? null : el.dataset.date; go('today'); },
   panel(el) {
     ui.panel = ui.panel === el.dataset.id ? null : el.dataset.id;
     ui.draft = { resistance: null, tags: [] };
@@ -70,7 +81,7 @@ const actions = {
   log(el) {
     const { id } = el.dataset, h = habitOf(id), prev = todaysLog(id);
     const count = h.target ? { target: h.target, current: el.dataset.status === 'done' ? h.target : prev?.current ?? 0 } : {};
-    setLog(id, key(today()), { status: el.dataset.status, ...feltFor(id, prev), ...count });
+    setLog(id, viewKey(), { status: el.dataset.status, ...feltFor(id, prev), ...count });
     ui.panel = null; ui.justLogged = id;
     render(`undo-${id}`);
     ui.justLogged = null;
@@ -78,12 +89,12 @@ const actions = {
   step(el) { // counter habits: reaching the goal marks the day done; anything less is partial progress
     const { id } = el.dataset, h = habitOf(id), prev = todaysLog(id);
     const current = Math.max(0, (prev?.current ?? 0) + Number(el.dataset.delta) * (h.step || 1));
-    if (current === 0) clearLog(id, key(today()));
-    else setLog(id, key(today()), { status: current >= h.target ? 'done' : 'partial', current, target: h.target, ...feltFor(id, prev) });
+    if (current === 0) clearLog(id, viewKey());
+    else setLog(id, viewKey(), { status: current >= h.target ? 'done' : 'partial', current, target: h.target, ...feltFor(id, prev) });
     render();
     ui.justLogged = null;
   },
-  undo(el) { clearLog(el.dataset.id, key(today())); render(`done-${el.dataset.id}`); },
+  undo(el) { clearLog(el.dataset.id, viewKey()); render(`done-${el.dataset.id}`); },
   'new-habit': () => openEditor(),
   'edit-habit': (el) => openEditor(el.dataset.id),
   async delete(el) {
