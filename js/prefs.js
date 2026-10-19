@@ -1,8 +1,8 @@
 // Display preferences. Kept apart from habit data so a restored backup never changes how the app looks.
 const KEY = 'scribble-habits.prefs';
-const DEFAULTS = { theme: 'system', text: 'normal', calm: false, weekStart: 1, time: 'auto' };
+const DEFAULTS = { theme: 'system', text: 'normal', card: 'normal', calm: false, weekStart: 1, time: 'auto' };
 const VALID = {
-  theme: ['system', 'light', 'dark'], text: ['normal', 'large'], calm: [false, true], weekStart: [0, 1], time: ['auto', '12', '24'],
+  theme: ['system', 'light', 'dark'], text: ['small', 'normal', 'large'], card: ['small', 'normal', 'large'], calm: [false, true], weekStart: [0, 1], time: ['auto', '12', '24'],
 };
 
 function load() {
@@ -24,6 +24,7 @@ export function apply() {
   const isDark = prefs.theme === 'dark' || (prefs.theme === 'system' && dark.matches);
   root.dataset.theme = isDark ? 'dark' : 'light';
   root.dataset.text = prefs.text;
+  root.dataset.card = prefs.card;
   root.dataset.calm = prefs.calm ? '1' : '0';
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', isDark ? '#1e1c19' : '#fdfbf7');
 }

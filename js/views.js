@@ -124,7 +124,7 @@ export function todayView(state, ui) {
       ${btn('new-habit', 'Add a habit', 'plus', '', 'btn--wide')}</div></div>`;
   }
   return `<div class="stack">${hero}
-    <ul class="list" aria-label="Today's habits">${habits.map((h, i) => todayCard(h, state, ui, now, day).replace('<li class="card', `<li class="card ${i % 3 === 0 ? 'pinned' : i % 3 === 1 ? 'taped' : ''}`)).join('')}</ul></div>`;
+    <ul class="list" aria-label="Today's habits">${habits.map((h, i) => todayCard(h, state, ui, now, day).replace('<li class="card', `<li class="card ${i % 2 === 0 ? 'pinned' : 'taped'}`)).join('')}</ul></div>`;
 }
 
 /* ---------------- Habits ---------------- */
@@ -288,7 +288,8 @@ export function settingsView(state, ui) {
     ${ui.notice ? `<p class="notice" role="status">${esc(ui.notice)}</p>` : ''}
     ${section('Appearance',
       choice('theme', 'Theme', [['system', 'Match device'], ['light', 'Light'], ['dark', 'Dark']], p.theme)
-      + choice('text', 'Text size', [['normal', 'Normal'], ['large', 'Large']], p.text)
+      + choice('text', 'Text size', [['small', 'Small'], ['normal', 'Normal'], ['large', 'Large']], p.text)
+      + choice('card', 'Card size', [['small', 'Small'], ['normal', 'Normal'], ['large', 'Large']], p.card)
       + choice('calm', 'Calm mode', [[false, 'Off'], [true, 'On']], p.calm)
       + '<p class="hint" style="margin-top:.5rem">Calm mode removes the tape, pins, tilts and jiggles for a quieter page.</p>')}
     ${section('Preferences',

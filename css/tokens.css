@@ -42,13 +42,23 @@
 
   /* Layout & motion */
   --tap: 48px;
+
+  /* Card size preference (Settings) */
+  --card-pad: 1.1rem 1.1rem 1rem;
+  --card-gap: .9rem;
+  --card-title: 1.35rem;
   --gap: 1rem;
   --ease-snap: cubic-bezier(.3, 1.5, .5, 1);
   --t-fast: 120ms;
 }
 
 /* Text size preference */
+:root[data-text="small"] { font-size: 90%; }
 :root[data-text="large"] { font-size: 118%; }
+
+/* Card size changes padding, spacing and title size, never the 48px tap targets */
+:root[data-card="small"] { --card-pad: .95rem .8rem .7rem; --card-gap: .6rem; --card-title: 1.15rem; }
+:root[data-card="large"] { --card-pad: 1.6rem 1.5rem 1.4rem; --card-gap: 1.5rem; --card-title: 1.65rem; }
 
 /* Dark theme ("sketching at night"). JS resolves System to light or dark, so this is the only dark block. */
 :root { color-scheme: light; }

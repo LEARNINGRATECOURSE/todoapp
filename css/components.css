@@ -61,7 +61,7 @@
 
 /* ---------- Cards, sticky notes, decoration ---------- */
 .card {
-  position: relative; background: var(--surface); padding: 1.1rem 1.1rem 1rem;
+  position: relative; background: var(--surface); padding: var(--card-pad);
   border: var(--bw) solid var(--pencil); border-radius: var(--wobble-lg);
   box-shadow: var(--shadow);
   transition: transform var(--t-fast) var(--ease-snap);
@@ -218,7 +218,8 @@ button.cal-day:hover { transform: rotate(-3deg) scale(1.06); }
 
 .bar { height: 1.1rem; background: var(--surface); border: var(--bw-thin) solid var(--pencil); border-radius: var(--wobble-sm); overflow: hidden; }
 .bar > i { display: block; height: 100%; background: var(--pen-blue); }
-.list { list-style: none; margin: 0; padding: 0; display: grid; gap: .9rem; }
+.list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--card-gap); }
+.card h3 { font-size: var(--card-title); }
 .week-row { display: grid; gap: .3rem; }
 
 .empty { text-align: center; padding: 2rem 1rem; }
