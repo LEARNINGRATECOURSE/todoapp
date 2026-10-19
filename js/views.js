@@ -3,6 +3,7 @@ import { icon, circled } from './icons.js';
 import { key, today, parse, isEnded, occursOn, dayStatus, chain, completion30, journey, calendarDay, addDays, weekly, tagInsights, logKey, PROGRESS_DAYS } from './stats.js';
 import * as reminders from './reminders.js';
 import { getPrefs, timeOpts } from './prefs.js';
+import { canPrompt, isInstalled, platform } from './install.js';
 
 export const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
@@ -273,6 +274,27 @@ export function historyView(state, ui) {
 }
 
 /* ---------------- Settings ---------------- */
+function installBody() {
+  const here = platform();
+  const steps = (title, open, items) => `<details class="how" ${open ? 'open' : ''}><summary>${title}</summary><ol>${items.map((i) => `<li>${i}</li>`).join('')}</ol></details>`;
+  if (isInstalled()) return '<p>You\'re using the installed app. ✓</p>';
+  return `<div class="stack stack--tight">
+    <p class="small muted">Install it like a normal app: its own icon, full screen, and it works offline.</p>
+    ${canPrompt() ? btn('install', 'Install app', 'download', 'data-fid="install"') : ''}
+    ${steps('iPhone or iPad (Safari)', here !== 'android', [
+      'Open this page in <strong>Safari</strong>.',
+      'Tap the <strong>Share</strong> button (the square with an arrow).',
+      'Scroll down and tap <strong>Add to Home Screen</strong>.',
+      'Tap <strong>Add</strong>. Open the app from your Home Screen.'])}
+    ${steps('Android (Chrome)', here !== 'ios', [
+      canPrompt() ? 'Tap <strong>Install app</strong> above, or:' : 'Open this page in <strong>Chrome</strong>.',
+      'Tap the <strong>⋮ menu</strong> at the top right.',
+      'Tap <strong>Install app</strong> (or <strong>Add to Home screen</strong>).',
+      'Tap <strong>Install</strong>.'])}
+    <p class="small muted">On iPhone, reminders only work once the app is added to the Home Screen.</p>
+  </div>`;
+}
+
 const choice = (name, label, options, current) => `<div class="setting"><div class="setting-label" id="s-${name}">${label}</div>
   <div class="chips" role="group" aria-labelledby="s-${name}">${options.map(([v, t]) => `<button type="button" class="chip" data-action="pref" data-key="${name}" data-value="${esc(JSON.stringify(v))}" data-fid="pref-${name}-${esc(v)}" aria-pressed="${current === v}">${t}</button>`).join('')}</div></div>`;
 
@@ -295,6 +317,7 @@ export function settingsView(state, ui) {
     ${section('Preferences',
       choice('weekStart', 'Week starts on', [[1, 'Monday'], [0, 'Sunday']], p.weekStart)
       + choice('time', 'Time format', [['auto', 'Match device'], ['12', '12-hour'], ['24', '24-hour']], p.time))}
+    ${section('Add to your phone', installBody())}
     ${section('Reminders', `<div class="stack stack--tight">${notifBtn}
       <p class="small muted">On iPhone and iPad, reminders only work after you add this app to your Home Screen (iOS 16.4+). They fire while the app is open or recently active.</p></div>`)}
     ${section('Your data', `<div class="stack stack--tight">

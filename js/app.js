@@ -1,5 +1,6 @@
 import { getState, saveHabit, deleteHabit, setLog, clearLog, wipe, parseBackup, replaceAll } from './store.js';
 import { apply as applyPrefs, setPref, clearPrefs } from './prefs.js';
+import { promptInstall, onInstallChange } from './install.js';
 import { key, today, logKey, parse, addDays } from './stats.js';
 import { todayView, habitsView, historyView, settingsView, editorForm } from './views.js';
 import { toCsv, download } from './csv.js';
@@ -117,6 +118,11 @@ const actions = {
     download(`habits-backup-${key(today())}.json`, JSON.stringify({ app: 'scribble-habits', version: 1, exportedAt: new Date().toISOString(), habits, logs }, null, 2), 'application/json');
   },
   restore: () => $('#restore-file').click(),
+  async install() {
+    const outcome = await promptInstall();
+    ui.notice = outcome === 'accepted' ? 'Installing… look for it on your home screen.' : outcome === 'dismissed' ? 'No problem. You can install it any time from here.' : '';
+    render();
+  },
   async wipe() {
     if (await ask('This permanently deletes every habit and log on this device. It can\'t be undone.', 'Delete everything')) {
       wipe(); clearPrefs(); location.reload();
@@ -187,6 +193,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) roll
 setInterval(rollover, 60_000);
 
 applyPrefs();
+onInstallChange(() => { if (ui.view === 'settings') render(); }); // the install prompt can arrive after first paint
 render();
 reminders.startReminders(getState);
 

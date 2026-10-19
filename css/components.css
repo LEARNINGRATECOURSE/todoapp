@@ -247,6 +247,11 @@ button.cal-day:hover { transform: rotate(-3deg) scale(1.06); }
 .setting-label { font-family: var(--font-head); font-weight: 700; }
 .notice { padding: .6rem .9rem; background: var(--sticky); border: var(--bw-thin) solid var(--pencil); border-radius: var(--wobble-md); }
 
+/* ---------- Install steps ---------- */
+.how { border: var(--bw-thin) dashed var(--pencil); border-radius: var(--wobble-md); padding: 0 .9rem; background: var(--paper); }
+.how summary { min-height: var(--tap); display: flex; align-items: center; cursor: pointer; font-family: var(--font-head); font-weight: 700; }
+.how ol { margin: 0 0 .8rem; padding-left: 1.4rem; display: grid; gap: .3rem; }
+
 /* ---------- Calm mode: no tape, pins, tilts or jiggles ---------- */
 :root[data-calm="1"] :is(.card, .sticky, .stamp, .tab, .chip, .flag, .app-header h1, .btn, button.cal-day) { transform: none !important; }
 :root[data-calm="1"] :is(.taped, .pinned)::before { display: none; }
