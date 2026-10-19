@@ -9,6 +9,9 @@ export const logKey = (habitId, date) => `${habitId}|${date}`;
 export const PROGRESS_DAYS = 66; // Lally et al. (2010): median time to automaticity
 export const INSIGHT_MIN_DAYS = 14;
 
+/** True once `date` is past the habit's optional end date. */
+export const isEnded = (habit, date) => !!habit.endDate && key(date) > habit.endDate;
+
 /**
  * Status of one habit on one day:
  * done | skip (logged) · miss (scheduled, past, unlogged) · open (scheduled today, unlogged)
@@ -19,7 +22,7 @@ export function dayStatus(habit, logs, date, now = today()) {
   if (log) return log.status;
   if (date < parse(habit.createdAt)) return 'before';
   if (date > now) return 'future';
-  if (!habit.days.includes(date.getDay())) return 'rest';
+  if (!habit.days.includes(date.getDay()) || isEnded(habit, date)) return 'rest';
   return date.getTime() === now.getTime() ? 'open' : 'miss';
 }
 
@@ -72,7 +75,7 @@ export function weekly(habits, logs, now = today()) {
       if (s === 'done') { done++; scheduled++; }
       else if (s === 'skip') skipped++;
       else if (s === 'miss' || s === 'open') scheduled++;
-      else if (s === 'future' && habit.days.includes(addDays(monday, i).getDay())) scheduled++;
+      else if (s === 'future' && habit.days.includes(addDays(monday, i).getDay()) && !isEnded(habit, addDays(monday, i))) scheduled++;
     }
     return { habit, done, skipped, scheduled };
   });

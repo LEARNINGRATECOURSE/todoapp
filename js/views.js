@@ -1,6 +1,6 @@
 // Views return HTML strings. All user text goes through esc().
 import { icon, circled } from './icons.js';
-import { key, today, dayStatus, chain, completion30, progress66, heatmap, weekly, tagInsights, logKey, PROGRESS_DAYS } from './stats.js';
+import { key, today, isEnded, dayStatus, chain, completion30, progress66, heatmap, weekly, tagInsights, logKey, PROGRESS_DAYS } from './stats.js';
 import * as reminders from './reminders.js';
 
 export const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -11,7 +11,10 @@ const LEVELS = ['low', 'medium', 'high'];
 const CHEERS = ['Nice one!', 'Look at you go!', 'Another link in the chain.', 'Done and dusted.'];
 const cheer = (id) => CHEERS[[...id].reduce((n, c) => n + c.charCodeAt(0), 0) % CHEERS.length];
 
-const scheduleLabel = (h) => (h.days.length === 7 ? 'Every day' : WEEKDAYS.filter(([, d]) => h.days.includes(d)).map(([n]) => n).join(' · '));
+const scheduleLabel = (h) => (h.days.length === 7 ? 'Every day' : WEEKDAYS.filter(([, d]) => h.days.includes(d)).map(([n]) => n).join(' · '))
+  + (h.endDate ? ` · ${isEnded(h, today()) ? 'ended' : 'until'} ${fmtDate(h.endDate)}` : '');
+const fmtTime = (hhmm) => new Date(`1970-01-01T${hhmm}`).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+const fmtDate = (k) => new Date(`${k}T00:00`).toLocaleDateString([], { month: 'short', day: 'numeric' });
 const btn = (action, label, ic, extra = '', cls = '') =>
   `<button type="button" class="btn ${cls}" data-action="${action}" ${extra}>${icon(ic)}<span>${label}</span></button>`;
 
@@ -49,13 +52,16 @@ function todayCard(h, state, ui, now) {
     </div>
     ${h.cue ? `<p class="bubble bubble--cue small">${esc(h.cue)}</p>` : ''}
     <div class="badges">
-      <span class="badge">${icon('link')} Chain: ${c}</span>
-      <span class="badge">${pct === null ? '30 days: —' : `Last 30 days: ${pct}%`}</span>
+      ${h.reminder ? `<span class="badge">${icon('bell')} ${esc(fmtTime(h.reminder))}</span>` : ''}
+      <span class="badge">${icon('link')} Chain ${c}</span>
+      <span class="badge" title="Completion, last 30 days">${pct === null ? '30d: —' : `30d: ${pct}%`}</span>
     </div>
     ${log ? `
       ${log.resistance || log.tags.length ? `<p class="small muted">Felt: ${[log.resistance && `${log.resistance} resistance`, ...log.tags].filter(Boolean).map(esc).join(', ')}</p>` : ''}
-      <p class="bubble small">${log.status === 'done' ? cheer(h.id) : "Rest day logged. Your chain is safe."}</p>
-      <div class="actions">${btn('undo', 'Undo', 'undo', `${id} data-fid="undo-${esc(h.id)}"`, 'btn--small')}</div>
+      <div class="row">
+        <p class="bubble bubble--side small">${log.status === 'done' ? cheer(h.id) : 'Rest day. Chain is safe.'}${log.at ? ` · ${esc(new Date(log.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))}` : ''}</p>
+        ${btn('undo', 'Undo', 'undo', `${id} data-fid="undo-${esc(h.id)}"`, 'btn--small')}
+      </div>
     ` : `
       ${open ? resistancePanel(h, ui.draft) : ''}
       <div class="actions">
@@ -69,13 +75,14 @@ function todayCard(h, state, ui, now) {
 export function todayView(state, ui) {
   const now = today();
   const dateStr = now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
-  const habits = state.habits.filter((h) => !h.archived && h.days.includes(now.getDay()));
+  const habits = state.habits.filter((h) => h.days.includes(now.getDay()) && !isEnded(h, now))
+    .sort((a, b) => (a.reminder || '99:99').localeCompare(b.reminder || '99:99'));
   const logged = habits.filter((h) => state.logs[logKey(h.id, key(now))]).length;
   const hero = `<div class="sticky taped">
       <h2>${esc(dateStr)}</h2>
       <p>${!habits.length ? 'Nothing scheduled today.' : logged === habits.length ? 'All logged. Go enjoy your day!' : `${logged} of ${habits.length} logged. Missed days are normal here.`}</p>
     </div>`;
-  if (!state.habits.some((h) => !h.archived)) {
+  if (!state.habits.length) {
     return `<div class="stack">${hero}<div class="card card--dashed empty">
       ${circled('sparkles')}<h3>A blank page!</h3><p>Add your first habit. Three to six is plenty.</p>
       ${btn('new-habit', 'Add a habit', 'plus', '', 'btn--wide')}</div></div>`;
@@ -85,24 +92,20 @@ export function todayView(state, ui) {
 }
 
 /* ---------------- Habits ---------------- */
-const habitRow = (h) => `<li class="card ${h.archived ? 'card--dashed' : ''}" data-id="${esc(h.id)}">
+const habitRow = (h) => `<li class="card" data-id="${esc(h.id)}">
   <div class="habit-head"><div><h3 class="habit-name">${esc(h.name)}</h3>
-    <p class="small muted">${scheduleLabel(h)}${h.reminder ? ` · ${icon('bell').replace('class="icon"', 'class="icon" style="width:1rem;height:1rem;vertical-align:-.15rem"')} ${esc(h.reminder)}` : ''}</p>
+    <p class="small muted">${scheduleLabel(h)}${h.reminder ? ` · ${esc(fmtTime(h.reminder))}` : ''}</p>
     ${h.cue ? `<p class="small">Cue: ${esc(h.cue)}</p>` : ''}</div></div>
   <div class="actions">
     ${btn('edit-habit', 'Edit', 'pencil', `data-id="${esc(h.id)}" data-fid="edit-${esc(h.id)}"`, 'btn--small')}
-    ${h.archived
-      ? btn('restore', 'Restore', 'undo', `data-id="${esc(h.id)}"`, 'btn--small')
-      : btn('archive', 'Archive', 'archive', `data-id="${esc(h.id)}"`, 'btn--small btn--danger')}
+    ${btn('delete', 'Delete', 'trash', `data-id="${esc(h.id)}"`, 'btn--small btn--danger')}
   </div></li>`;
 
 export function habitsView(state) {
-  const active = state.habits.filter((h) => !h.archived);
-  const archived = state.habits.filter((h) => h.archived);
+  const active = state.habits;
   return `<div class="stack">
     <div class="view-title"><h2>My habits</h2>${btn('new-habit', 'New habit', 'plus', 'data-fid="new"')}</div>
     ${active.length ? `<ul class="list">${active.map(habitRow).join('')}</ul>` : '<p class="muted">No active habits yet.</p>'}
-    ${archived.length ? `<section class="stack stack--tight"><h3>Archived</h3><ul class="list">${archived.map(habitRow).join('')}</ul></section>` : ''}
   </div>`;
 }
 
@@ -121,8 +124,11 @@ export function editorForm(h) {
       <p class="hint" id="f-days-err" role="alert" hidden style="color:var(--red-ink)">Pick at least one day.</p></fieldset>
     <div class="field"><label for="f-cue">Cue <span class="muted small">(optional)</span></label>
       <input class="input" id="f-cue" name="cue" maxlength="80" value="${esc(h?.cue)}" placeholder="after morning coffee" autocomplete="off"></div>
-    <div class="field"><label for="f-rem">Reminder <span class="muted small">(optional)</span></label>
+    <div class="field"><label for="f-rem">Time &amp; reminder <span class="muted small">(optional)</span></label>
       <input class="input" id="f-rem" name="reminder" type="time" value="${esc(h?.reminder)}"></div>
+    <div class="field"><label for="f-end">End date <span class="muted small">(optional)</span></label>
+      <input class="input" id="f-end" name="endDate" type="date" value="${esc(h?.endDate)}" ${h ? '' : `min="${key(today())}"`}>
+      <p class="hint">After this day the habit stops showing up on Today. Its history stays.</p></div>
     <div class="row row--between">
       <button type="button" class="btn" data-action="close-dialog">${icon('x')}<span>Cancel</span></button>
       <button type="submit" class="btn btn--on">${icon('check')}<span>Save</span></button>
@@ -134,7 +140,7 @@ export function editorForm(h) {
 const STATUS_WORDS = { done: 'done', skip: 'skipped', miss: 'missed', rest: 'not scheduled', open: 'to do', before: 'before habit', future: 'upcoming' };
 
 function insightsCard(state) {
-  const ins = tagInsights(state.habits.filter((h) => !h.archived), state.logs);
+  const ins = tagInsights(state.habits, state.logs);
   let body;
   if (!ins.rows.length && !ins.ready) body = `<p>Add tags on your check-ins. After two weeks, I'll show which ones tend to come before a missed day. ${ins.daysLeft} days to go.</p>`;
   else if (!ins.ready) body = `<p>Keep tagging. Patterns show up in ${ins.daysLeft} more days.</p>`;
@@ -146,7 +152,7 @@ function insightsCard(state) {
 }
 
 export function historyView(state, ui) {
-  const habits = state.habits.filter((h) => !h.archived);
+  const habits = state.habits;
   if (!habits.length) return `<div class="card card--dashed empty">${circled('calendar')}<h3>Nothing to look back on yet</h3><p>Your history will fill in as you log.</p></div>`;
   const h = habits.find((x) => x.id === ui.historyId) ?? habits[0];
   const cells = heatmap(h, state.logs);

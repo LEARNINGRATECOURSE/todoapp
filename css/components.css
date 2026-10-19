@@ -100,13 +100,15 @@
   background: var(--white); border-left: var(--bw-thin) solid var(--pencil); border-top: var(--bw-thin) solid var(--pencil);
   transform: rotate(45deg);
 }
+.bubble--side { margin: 0; flex: 1 1 8rem; }
+.bubble--side::before { left: -9px; top: calc(50% - 7px); transform: rotate(-45deg); }
 .bubble--cue { background: var(--sticky); }
 .bubble--cue::before { background: var(--sticky); }
 
 /* ---------- Habit card ---------- */
 .habit-head { display: flex; justify-content: space-between; align-items: flex-start; gap: .75rem; }
 .habit-name { overflow-wrap: anywhere; }
-.badges { display: flex; flex-wrap: wrap; gap: .5rem; margin: .6rem 0; }
+.badges { display: flex; flex-wrap: wrap; gap: .4rem; margin: .6rem 0; }
 .badge {
   display: inline-flex; align-items: center; gap: .35rem; padding: .1rem .7rem;
   background: var(--paper); border: var(--bw-thin) solid var(--pencil); border-radius: var(--wobble-sm); font-size: 1.05rem;

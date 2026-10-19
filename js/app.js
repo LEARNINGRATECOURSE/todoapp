@@ -1,4 +1,4 @@
-import { getState, saveHabit, setArchived, setLog, clearLog, wipe } from './store.js';
+import { getState, saveHabit, deleteHabit, setLog, clearLog, wipe } from './store.js';
 import { key, today } from './stats.js';
 import { todayView, habitsView, historyView, settingsView, editorForm } from './views.js';
 import { toCsv, download } from './csv.js';
@@ -33,8 +33,9 @@ function openEditor(id) {
   editor.querySelector('#f-name').focus();
 }
 
-function ask(message, okLabel) {
+function ask(message, okLabel, cancelLabel = 'Keep my data') {
   confirmDlg.querySelector('#confirm-msg').textContent = message;
+  confirmDlg.querySelector('#confirm-cancel').textContent = cancelLabel;
   confirmDlg.querySelector('#confirm-ok').lastElementChild.textContent = okLabel;
   return new Promise((resolve) => {
     confirmDlg.returnValue = '';
@@ -72,8 +73,12 @@ const actions = {
   undo(el) { clearLog(el.dataset.id, key(today())); render(`done-${el.dataset.id}`); },
   'new-habit': () => openEditor(),
   'edit-habit': (el) => openEditor(el.dataset.id),
-  archive(el) { setArchived(el.dataset.id, true); render('new'); },
-  restore(el) { setArchived(el.dataset.id, false); render('new'); },
+  async delete(el) {
+    const h = getState().habits.find((x) => x.id === el.dataset.id);
+    if (await ask(`Delete "${h.name}" and all of its history? This can't be undone.`, 'Delete habit', 'Keep it')) {
+      deleteHabit(h.id); render('new');
+    }
+  },
   'pick-history': (el) => { ui.historyId = el.dataset.id; render(); },
   'close-dialog': () => editor.close(),
   export: () => download(`habits-${key(today())}.csv`, toCsv(getState())),
@@ -108,7 +113,7 @@ document.addEventListener('submit', (e) => {
   form.querySelector('#f-days-err').hidden = days.length > 0;
   if (!name) return form.querySelector('#f-name').focus();
   if (!days.length) return;
-  saveHabit({ id: data.get('id') || null, name, days, cue: data.get('cue'), reminder: data.get('reminder') });
+  saveHabit({ id: data.get('id') || null, name, days, cue: data.get('cue'), reminder: data.get('reminder'), endDate: data.get('endDate') });
   editor.close();
   render();
 });

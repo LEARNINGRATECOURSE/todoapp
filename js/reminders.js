@@ -1,6 +1,6 @@
 // Per-habit reminders. Fires while the app (or its service worker) is alive; true background
 // push needs a push server, which a local-first v1 deliberately doesn't have.
-import { key, today, logKey } from './stats.js';
+import { key, today, logKey, isEnded } from './stats.js';
 import { markNotified } from './store.js';
 
 export const supported = () => 'Notification' in window;
@@ -21,7 +21,7 @@ export function startReminders(getState) {
     const { habits, logs, notified } = getState();
     const date = key(today());
     for (const h of habits) {
-      if (h.archived || !h.reminder || h.reminder > hhmm || !h.days.includes(now.getDay())) continue;
+      if (isEnded(h, now) || !h.reminder || h.reminder > hhmm || !h.days.includes(now.getDay())) continue;
       if (logs[logKey(h.id, date)] || notified[logKey(h.id, date)]) continue;
       markNotified(h.id, date);
       notify(h);
