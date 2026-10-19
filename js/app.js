@@ -10,7 +10,7 @@ const main = $('#main');
 const editor = $('#editor');
 const confirmDlg = $('#confirm');
 
-const ui = { view: 'today', panel: null, draft: { resistance: null, tags: [] }, historyId: null, justLogged: null };
+const ui = { view: 'today', panel: null, draft: { resistance: null, tags: [] }, historyId: null, calMonth: null, justLogged: null };
 let renderedDay = key(today());
 
 function render(focusId) {
@@ -79,7 +79,11 @@ const actions = {
       deleteHabit(h.id); render('new');
     }
   },
-  'pick-history': (el) => { ui.historyId = el.dataset.id; render(); },
+  'pick-history': (el) => { ui.historyId = el.dataset.id; ui.calMonth = null; render(); },
+  'cal-step': (el) => {
+    ui.calMonth += Number(el.dataset.delta); // the view always stores a clamped month
+    render();
+  },
   'close-dialog': () => editor.close(),
   export: () => download(`habits-${key(today())}.csv`, toCsv(getState())),
   async wipe() {

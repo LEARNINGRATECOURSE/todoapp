@@ -9,6 +9,12 @@
   --white: #fff;
   --sticky: #fff9c4;
 
+  /* Status colours: done = green, skipped = red, upcoming = blue */
+  --done-green: #2a7d4f;
+  --tint-green: #dcf2e3;
+  --tint-red: #ffe0e0;
+  --tint-blue: #dde9fa;
+
   /* Text-safe variants (WCAG AA): raw marker red fails as text on paper */
   --ink-soft: #5a5650;
   --red-ink: #b3261e;

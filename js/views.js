@@ -1,6 +1,6 @@
 // Views return HTML strings. All user text goes through esc().
 import { icon, circled } from './icons.js';
-import { key, today, isEnded, dayStatus, chain, completion30, progress66, heatmap, weekly, tagInsights, logKey, PROGRESS_DAYS } from './stats.js';
+import { key, today, isEnded, dayStatus, chain, completion30, journey, calendarDay, addDays, weekly, tagInsights, logKey, PROGRESS_DAYS } from './stats.js';
 import * as reminders from './reminders.js';
 
 export const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -14,7 +14,7 @@ const cheer = (id) => CHEERS[[...id].reduce((n, c) => n + c.charCodeAt(0), 0) % 
 const scheduleLabel = (h) => (h.days.length === 7 ? 'Every day' : WEEKDAYS.filter(([, d]) => h.days.includes(d)).map(([n]) => n).join(' · '))
   + (h.endDate ? ` · ${isEnded(h, today()) ? 'ended' : 'until'} ${fmtDate(h.endDate)}` : '');
 const fmtTime = (hhmm) => new Date(`1970-01-01T${hhmm}`).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-const fmtDate = (k) => new Date(`${k}T00:00`).toLocaleDateString([], { month: 'short', day: 'numeric' });
+const fmtDate = (k, year) => new Date(`${k}T00:00`).toLocaleDateString([], { month: 'short', day: 'numeric', ...(year && { year: 'numeric' }) });
 const btn = (action, label, ic, extra = '', cls = '') =>
   `<button type="button" class="btn ${cls}" data-action="${action}" ${extra}>${icon(ic)}<span>${label}</span></button>`;
 
@@ -45,10 +45,11 @@ function todayCard(h, state, ui, now) {
   const pct = completion30(h, state.logs, now);
   const open = ui.panel === h.id;
   const id = `data-id="${esc(h.id)}"`;
-  const stampHtml = log && `<span class="stamp ${log.status === 'skip' ? 'stamp--skip' : ''}">${icon(log.status === 'done' ? 'check' : 'skip')} ${log.status === 'done' ? 'Done' : 'Skipped'}</span>`;
-  return `<li class="card ${log?.status === 'done' ? 'card--done' : ''} ${ui.justLogged === h.id ? 'just-logged' : ''}" ${id}>
+  const st = log ? log.status : 'up'; // done (green) · skip (red) · up (blue)
+  const stampHtml = `<span class="stamp stamp--${st}">${icon({ done: 'check', skip: 'skip', up: 'calendar' }[st])} ${{ done: 'Done', skip: 'Skipped', up: 'Upcoming' }[st]}</span>`;
+  return `<li class="card card--${st} ${ui.justLogged === h.id ? 'just-logged' : ''}" ${id}>
     <div class="habit-head">
-      <h3 class="habit-name">${esc(h.name)}</h3>${stampHtml || ''}
+      <h3 class="habit-name">${esc(h.name)}</h3>${stampHtml}
     </div>
     ${h.cue ? `<p class="bubble bubble--cue small">${esc(h.cue)}</p>` : ''}
     <div class="badges">
@@ -137,7 +138,39 @@ export function editorForm(h) {
 }
 
 /* ---------------- History ---------------- */
-const STATUS_WORDS = { done: 'done', skip: 'skipped', miss: 'missed', rest: 'not scheduled', open: 'to do', before: 'before habit', future: 'upcoming' };
+const STATUS_WORDS = { done: 'done', skip: 'skipped', miss: 'missed', rest: 'not scheduled', up: 'upcoming', out: '' };
+const MONTH = (d) => d.getFullYear() * 12 + d.getMonth();
+
+/** Month calendar from the habit's start date to its end date, marking the days the task is planned. */
+function calendar(h, state, ui, jr) {
+  const now = today();
+  const lo = MONTH(jr.start), hi = MONTH(jr.end);
+  const cur = ui.calMonth = Math.min(hi, Math.max(lo, ui.calMonth ?? MONTH(now)));
+  const first = new Date(Math.floor(cur / 12), cur % 12, 1);
+  const cells = Array.from({ length: (first.getDay() + 6) % 7 }, () => '<div aria-hidden="true"></div>');
+  for (let d = first; d.getMonth() === first.getMonth(); d = addDays(d, 1)) {
+    const s = calendarDay(h, state.logs, d, jr, now);
+    const isStart = d.getTime() === jr.start.getTime(), isEnd = d.getTime() === jr.end.getTime();
+    const label = `${d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}: ${[isStart && 'start', isEnd && 'end', STATUS_WORDS[s]].filter(Boolean).join(', ')}`;
+    cells.push(`<div class="cal-day st-${s} ${d.getTime() === now.getTime() ? 'is-today' : ''}" role="listitem" aria-label="${esc(label)}">
+      <span>${d.getDate()}</span>${s === 'done' ? icon('check') : s === 'skip' ? icon('skip') : ''}
+      ${isStart ? '<b class="flag">Start</b>' : isEnd ? '<b class="flag">End</b>' : ''}</div>`);
+  }
+  const range = `${fmtDate(key(jr.start))} to ${fmtDate(key(jr.end))}`;
+  return `<p class="small"><strong>Start</strong> ${esc(fmtDate(key(jr.start), true))} &rarr; <strong>End</strong> ${esc(fmtDate(key(jr.end), true))}${jr.hasEnd ? '' : ` <span class="muted">(your ${PROGRESS_DAYS}th planned day)</span>`}</p>
+    <div class="row row--between" style="margin:.6rem 0">
+      <button type="button" class="btn btn--small" data-action="cal-step" data-delta="-1" aria-label="Previous month" ${cur <= lo ? 'disabled' : ''}>${icon('chevron-left')}</button>
+      <h4 class="cal-title" aria-live="polite">${esc(first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }))}</h4>
+      <button type="button" class="btn btn--small" data-action="cal-step" data-delta="1" aria-label="Next month" ${cur >= hi ? 'disabled' : ''}>${icon('chevron-right')}</button>
+    </div>
+    <div class="cal" role="list" aria-label="Planned days, ${esc(range)}">
+      ${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((n) => `<span class="cal-head" aria-hidden="true">${n}</span>`).join('')}${cells.join('')}
+    </div>
+    <div class="legend" aria-hidden="true">
+      <span><i class="key st-done"></i>Done</span><span><i class="key st-skip"></i>Skipped</span><span><i class="key st-up"></i>Upcoming</span>
+      <span><i class="key st-miss"></i>Missed</span><span><i class="key st-rest"></i>Off day</span>
+    </div>`;
+}
 
 function insightsCard(state) {
   const ins = tagInsights(state.habits, state.logs);
@@ -155,8 +188,7 @@ export function historyView(state, ui) {
   const habits = state.habits;
   if (!habits.length) return `<div class="card card--dashed empty">${circled('calendar')}<h3>Nothing to look back on yet</h3><p>Your history will fill in as you log.</p></div>`;
   const h = habits.find((x) => x.id === ui.historyId) ?? habits[0];
-  const cells = heatmap(h, state.logs);
-  const c = chain(h, state.logs), pct = completion30(h, state.logs), p66 = progress66(h, state.logs);
+  const c = chain(h, state.logs), pct = completion30(h, state.logs), jr = journey(h, state.logs);
   const summary = weekly(habits, state.logs);
   return `<div class="stack">
     <h2>History</h2>
@@ -165,18 +197,11 @@ export function historyView(state, ui) {
     </div>
     <section class="card" aria-labelledby="hm-h"><h3 id="hm-h">${esc(h.name)}</h3>
       <div class="badges"><span class="badge">${icon('link')} Chain: ${c}</span><span class="badge">${pct === null ? '30 days: —' : `Last 30 days: ${pct}%`}</span></div>
-      <div class="heat" role="img" aria-label="Calendar heatmap of the last 13 weeks. ${cells.filter((x) => x.status === 'done').length} days done.">
-        ${cells.map((x) => `<span class="${x.status}" title="${esc(x.date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }))}: ${STATUS_WORDS[x.status]}"></span>`).join('')}
-      </div>
-      <p class="small muted">Columns are weeks, Monday at the top.</p>
-      <div class="legend" aria-hidden="true">
-        <span><i class="heat-key done"></i>Done</span><span><i class="heat-key skip"></i>Skipped</span>
-        <span><i class="heat-key miss"></i>Missed</span><span><i class="heat-key rest"></i>Off day</span>
-      </div></section>
-    <section class="card" aria-labelledby="p66-h"><h3 id="p66-h">66-day journey</h3>
-      <p class="small muted">Habits take about 66 days on average to feel automatic (Lally et al., 2010). Done days only add up. Misses never subtract.</p>
-      <div class="dots" role="img" aria-label="${p66} of ${PROGRESS_DAYS} days done" style="margin:.7rem 0">${Array.from({ length: PROGRESS_DAYS }, (_, i) => `<i class="${i < p66 ? 'on' : ''}"></i>`).join('')}</div>
-      <p><strong>${p66}</strong> of ${PROGRESS_DAYS} days</p></section>
+      ${calendar(h, state, ui, jr)}</section>
+    <section class="card" aria-labelledby="p66-h"><h3 id="p66-h">${jr.hasEnd ? 'Your journey' : `${PROGRESS_DAYS}-day journey`}</h3>
+      <p class="small muted">${jr.hasEnd ? 'Every day this habit is planned, until your end date.' : `Your first ${PROGRESS_DAYS} planned days (people need about 66 days on average to make a habit automatic).`} Off days aren't counted, and misses never take progress away.</p>
+      <div class="dots" role="img" aria-label="${jr.done} of ${jr.days.length} planned days done" style="margin:.7rem 0">${jr.days.map((x) => `<i class="st-${x.status}" title="${esc(fmtDate(key(x.date)))}: ${STATUS_WORDS[x.status]}"></i>`).join('')}</div>
+      <p><strong>${jr.done}</strong> of ${jr.days.length} planned days</p></section>
     <section class="card" aria-labelledby="wk-h"><h3 id="wk-h">This week</h3>
       <ul class="list" style="margin-top:.7rem">${summary.map((w) => `<li class="week-row"><div class="row row--between"><span>${esc(w.habit.name)}</span><span>${w.done}/${w.scheduled}${w.skipped ? ` · ${w.skipped} skipped` : ''}</span></div>
         <div class="bar" role="img" aria-label="${w.done} of ${w.scheduled} done"><i style="width:${w.scheduled ? (w.done / w.scheduled) * 100 : 0}%"></i></div></li>`).join('')}</ul></section>

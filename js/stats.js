@@ -48,21 +48,29 @@ export function completion30(habit, logs, now = today()) {
   return done + miss ? Math.round((done / (done + miss)) * 100) : null;
 }
 
-/** Total done days toward the 66-day goal. It only grows, so a miss never resets this view. */
-export function progress66(habit, logs) {
-  let done = 0;
-  for (const k in logs) if (logs[k].habitId === habit.id && logs[k].status === 'done') done++;
-  return Math.min(done, PROGRESS_DAYS);
+/**
+ * The habit's journey: only the days it is actually scheduled, from its start date to its end date.
+ * With no end date it runs for PROGRESS_DAYS scheduled days. Misses never subtract from `done`.
+ */
+export function journey(habit, logs, now = today()) {
+  const start = parse(habit.createdAt);
+  const days = [];
+  for (let d = start, i = 0; i < 3660; d = addDays(d, 1), i++) {
+    if (habit.endDate ? key(d) > habit.endDate : days.length >= PROGRESS_DAYS) break;
+    if (!habit.days.includes(d.getDay())) continue;
+    const s = dayStatus(habit, logs, d, now);
+    days.push({ date: d, status: s === 'open' || s === 'future' ? 'up' : s });
+  }
+  const end = habit.endDate ? parse(habit.endDate) : days.length ? days[days.length - 1].date : start;
+  return { start, end, days, done: days.filter((x) => x.status === 'done').length, hasEnd: !!habit.endDate };
 }
 
-/** Last `weeks` weeks as Monday-first columns, ending with the current week. */
-export function heatmap(habit, logs, weeks = 13, now = today()) {
-  const monday = addDays(now, -((now.getDay() + 6) % 7));
-  const first = addDays(monday, -7 * (weeks - 1));
-  return Array.from({ length: weeks * 7 }, (_, i) => {
-    const date = addDays(first, i);
-    return { date, status: dayStatus(habit, logs, date, now) };
-  });
+/** Calendar cell state: done | skip | miss | up (scheduled, not yet logged) | rest (off day) | out (outside the journey). */
+export function calendarDay(habit, logs, date, range, now = today()) {
+  if (date < range.start || date > range.end) return 'out';
+  const s = dayStatus(habit, logs, date, now);
+  if (s === 'open' || (s === 'future' && habit.days.includes(date.getDay()))) return 'up';
+  return s === 'future' || s === 'before' ? 'rest' : s;
 }
 
 /** This week (Mon–Sun) per habit. */
