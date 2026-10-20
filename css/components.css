@@ -256,3 +256,13 @@ button.cal-day:hover { transform: rotate(-3deg) scale(1.06); }
 :root[data-calm="1"] :is(.card, .sticky, .stamp, .tab, .chip, .flag, .app-header h1, .btn, button.cal-day) { transform: none !important; }
 :root[data-calm="1"] :is(.taped, .pinned)::before { display: none; }
 :root[data-calm="1"] * { animation: none !important; }
+
+/* ---------- Habit form: weekly or monthly schedule, day-of-month grid ---------- */
+dialog form .monthly-fields { display: none; }
+dialog form:has(select[name="cadence"] option[value="month"]:checked) .monthly-fields { display: grid; }
+dialog form:has(select[name="cadence"] option[value="month"]:checked) .weekly-fields { display: none; }
+.month-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: .4rem; }
+.chip--day { padding: 0; min-width: 0; justify-content: center; }
+
+/* ---------- Today: go to any day ---------- */
+.daypick { justify-content: center; margin-top: .6rem; }

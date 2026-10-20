@@ -19,10 +19,14 @@ const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `h${Date.now()}${Ma
 export const getState = () => state;
 
 export function saveHabit(input) {
+  const monthly = input.repeat === 'monthly';
   const fields = {
     name: input.name.trim(),
+    createdAt: input.startDate || key(new Date()), // the day tracking starts
+    repeat: monthly ? 'monthly' : 'weekly',
     days: [...input.days].sort((a, b) => a - b),
-    every: input.every || 1,
+    monthDays: [...new Set(input.monthDays)].sort((a, b) => a - b),
+    every: monthly ? 1 : input.every || 1,
     reminder: input.reminder || null,
     endDate: input.endDate || null,
     endAfter: input.endAfter || null,
@@ -32,7 +36,7 @@ export function saveHabit(input) {
     step: input.target ? input.step || 1 : 1,
   };
   const existing = input.id && state.habits.find((h) => h.id === input.id);
-  const habit = existing ? Object.assign(existing, fields) : { id: uid(), createdAt: key(new Date()), ...fields };
+  const habit = existing ? Object.assign(existing, fields) : { id: uid(), ...fields };
   if (habit.endAfter) habit.endDate = endDateAfter(habit, habit.endAfter); // "after N times" becomes a concrete end date
   if (!existing) state.habits.push(habit);
   save();
@@ -76,10 +80,14 @@ export function parseBackup(text) {
   if (!o || !Array.isArray(o.habits) || !o.logs || typeof o.logs !== 'object') return null;
   const habits = [];
   for (const h of o.habits) {
-    const okDays = Array.isArray(h?.days) && h.days.length && h.days.every((d) => Number.isInteger(d) && d >= 0 && d <= 6);
-    if (typeof h?.id !== 'string' || typeof h.name !== 'string' || !DATE.test(h.createdAt) || !okDays) return null;
+    const repeat = h?.repeat === 'monthly' ? 'monthly' : 'weekly';
+    const days = Array.isArray(h?.days) ? h.days : [];
+    const monthDays = Array.isArray(h?.monthDays) ? h.monthDays.filter((d) => Number.isInteger(d) && d >= 1 && d <= 31) : [];
+    const okDays = days.every((d) => Number.isInteger(d) && d >= 0 && d <= 6) && (repeat === 'monthly' || days.length > 0);
+    const okSchedule = repeat === 'monthly' ? monthDays.length > 0 : okDays;
+    if (typeof h?.id !== 'string' || typeof h.name !== 'string' || !DATE.test(h.createdAt) || !okSchedule) return null;
     habits.push({
-      id: h.id, name: h.name.slice(0, 60), createdAt: h.createdAt, days: h.days,
+      id: h.id, name: h.name.slice(0, 60), createdAt: h.createdAt, repeat, days, monthDays,
       every: [1, 2, 3, 4].includes(h.every) ? h.every : 1,
       cue: String(h.cue ?? '').slice(0, 80),
       reminder: /^\d{2}:\d{2}$/.test(h.reminder) ? h.reminder : null,

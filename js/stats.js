@@ -11,8 +11,18 @@ export const INSIGHT_MIN_DAYS = 14;
 
 const mondayOf = (d) => addDays(d, -((d.getDay() + 6) % 7));
 
-/** Does the habit's schedule land on `date`? Handles "every N weeks", counted from the start week. */
+const monthEnd = (d) => new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+
+/**
+ * Does the habit's schedule land on `date`?
+ * Monthly: on the chosen days of the month (in shorter months, the last day stands in for a later one).
+ * Weekly: on the chosen weekdays, and every N weeks counted from the start week.
+ */
 export function occursOn(habit, date) {
+  if (habit.repeat === 'monthly') {
+    const dom = date.getDate();
+    return (habit.monthDays || []).some((d) => d === dom || (d > monthEnd(date) && dom === monthEnd(date)));
+  }
   if (!habit.days.includes(date.getDay())) return false;
   const every = habit.every || 1;
   if (every === 1) return true;
@@ -123,9 +133,9 @@ export function tagInsights(habits, logs, now = today()) {
   const tally = {};
   for (const l of entries) {
     const h = byId.get(l.habitId);
-    if (!h || !l.tags?.length || !h.days.length) continue;
+    if (!h || !l.tags?.length || !(h.repeat === 'monthly' ? h.monthDays : h.days).length) continue;
     let d = addDays(parse(l.date), 1);
-    for (let i = 0; i < 7 * (h.every || 1) && !occursOn(h, d); i++) d = addDays(d, 1);
+    for (let i = 0; i < 400 && !occursOn(h, d); i++) d = addDays(d, 1); // long enough for any monthly or every-N-weeks schedule
     if (d >= now) continue; // next scheduled day hasn't finished yet
     const wasMissed = missed(dayStatus(h, logs, d, now));
     for (const t of l.tags) {

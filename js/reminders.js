@@ -41,7 +41,7 @@ export function startReminders(getState) {
     const date = key(today());
     for (const h of habits) {
       const id = logKey(h.id, date);
-      if (isEnded(h, now) || !h.reminder || h.reminder > hhmm || !occursOn(h, now)) continue;
+      if (isEnded(h, now) || h.createdAt > date || !h.reminder || h.reminder > hhmm || !occursOn(h, now)) continue;
       if (logs[id] || notified[id] || sending.has(id)) continue;
       sending.add(id);
       // Only mark it sent once it really showed, so a failure is retried on the next tick

@@ -15,9 +15,18 @@ const LEVELS = ['low', 'medium', 'high'];
 const CHEERS = ['Nice one!', 'Look at you go!', 'Another link in the chain.', 'Done and dusted.'];
 const cheer = (id) => CHEERS[[...id].reduce((n, c) => n + c.charCodeAt(0), 0) % CHEERS.length];
 
+const ordinal = (n) => n + ([11, 12, 13].includes(n % 100) ? 'th' : { 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th');
+const ordinalList = (ns) => {
+  const s = [...ns].sort((a, b) => a - b).map(ordinal);
+  return s.length > 1 ? `${s.slice(0, -1).join(', ')} and ${s[s.length - 1]}` : s[0];
+};
+const cadenceOf = (h) => (h?.repeat === 'monthly' ? 'month' : String(h?.every || 1));
+
 const scheduleLabel = (h) => {
-  const days = h.days.length === 7 ? 'Every day' : WEEKDAYS.filter(([, d]) => h.days.includes(d)).map(([n]) => n).join(' · ');
-  return [h.every > 1 ? `Every ${h.every} weeks: ${days}` : days,
+  const days = h.repeat === 'monthly' ? `On the ${ordinalList(h.monthDays)} of every month`
+    : h.days.length === 7 ? 'Every day' : WEEKDAYS.filter(([, d]) => h.days.includes(d)).map(([n]) => n).join(' · ');
+  return [h.createdAt > key(today()) && `Starts ${fmtDate(h.createdAt)}`,
+    h.every > 1 ? `Every ${h.every} weeks: ${days}` : days,
     h.target && `${h.target} ${h.unit || 'times'}`,
     h.endDate && `${isEnded(h, today()) ? 'ended' : 'until'} ${fmtDate(h.endDate)}${h.endAfter ? ` (${h.endAfter} times)` : ''}`].filter(Boolean).join(' · ');
 };
@@ -121,7 +130,11 @@ export function todayView(state, ui) {
       <button type="button" class="btn btn--small btn--icon-sm" data-action="day-step" data-delta="1" aria-label="Next day" ${isToday ? 'disabled' : ''}>${icon('chevron-right')}</button>
     </div>
     ${isToday && remindersOff(state) ? `<div class="notice stack stack--tight" role="status"><span>${reminders.permission() === 'denied' ? 'Reminders are blocked in your browser settings, so you won\'t get notified.' : 'You have reminder times set, but notifications are off.'}</span>${reminders.permission() === 'denied' ? '' : btn('enable-notifs', 'Turn on reminders', 'bell', '', 'btn--small')}</div>` : ''}
-    ${isToday ? '' : `<div class="row" style="justify-content:center">${btn('day-today', 'Back to today', 'sun', '', 'btn--small')}</div>`}`;
+    <div class="row daypick">
+      <label class="small muted" for="pick-day">Go to a day</label>
+      <input class="input input--inline" id="pick-day" type="date" data-fid="pick-day" value="${key(day)}" min="${earliest}" max="${key(now)}">
+      ${isToday ? '' : btn('day-today', 'Back to today', 'sun', '', 'btn--small')}
+    </div>`;
   if (!state.habits.length) {
     return `<div class="stack">${hero}<div class="card card--dashed empty">
       ${circled('sparkles')}<h3>A blank page!</h3><p>Add your first habit. Three to six is plenty.</p>
@@ -151,6 +164,7 @@ export function habitsView(state) {
 
 export function editorForm(h) {
   const days = h?.days ?? [0, 1, 2, 3, 4, 5, 6];
+  const monthDays = h?.monthDays ?? [new Date().getDate()];
   const endMode = h?.endAfter ? 'count' : h?.endDate ? 'date' : 'never';
   const err = (id, msg) => `<p class="hint" id="${id}" role="alert" hidden style="color:var(--red-ink)">${msg}</p>`;
   return `<h2 id="editor-title">${h ? 'Edit habit' : 'New habit'}</h2>
@@ -173,15 +187,26 @@ export function editorForm(h) {
       <div class="field"><label for="f-step">Each tap adds</label>
         <input class="input" id="f-step" name="step" type="number" min="1" max="100000" inputmode="numeric" value="${esc(h?.step || 1)}"></div>
     </div>
-    <fieldset class="field"><legend>Schedule</legend>
+    <div class="field"><label for="f-start">Start date</label>
+      <input class="input" id="f-start" name="startDate" type="date" value="${esc(h?.createdAt ?? key(today()))}">
+      ${err('f-start-err', 'Pick a start date.')}
+      <p class="hint">Days before this date aren't counted against you.</p></div>
+    <div class="field"><label for="f-cadence">Repeats</label>
+      <select class="input" id="f-cadence" name="cadence">
+        ${[['1', 'Every week'], ['2', 'Every 2 weeks (fortnightly)'], ['3', 'Every 3 weeks'], ['4', 'Every 4 weeks'], ['month', 'Every month, on set dates']]
+          .map(([v, t]) => `<option value="${v}" ${cadenceOf(h) === v ? 'selected' : ''}>${t}</option>`).join('')}
+      </select></div>
+    <fieldset class="field weekly-fields"><legend>Days of the week</legend>
       <div class="chips">
         ${weekdays().map(([n, d]) => `<label class="chip"><input type="checkbox" name="day" value="${d}" ${days.includes(d) ? 'checked' : ''}>${n}</label>`).join('')}
       </div>
       ${err('f-days-err', 'Pick at least one day.')}</fieldset>
-    <div class="field"><label for="f-every">Repeats</label>
-      <select class="input" id="f-every" name="every">
-        ${[[1, 'Every week'], [2, 'Every 2 weeks (fortnightly)'], [3, 'Every 3 weeks'], [4, 'Every 4 weeks']].map(([n, t]) => `<option value="${n}" ${(h?.every || 1) === n ? 'selected' : ''}>${t}</option>`).join('')}
-      </select></div>
+    <fieldset class="field monthly-fields"><legend>Days of the month</legend>
+      <div class="month-grid">
+        ${Array.from({ length: 31 }, (_, i) => i + 1).map((d) => `<label class="chip chip--day"><input type="checkbox" name="monthDay" value="${d}" ${monthDays.includes(d) ? 'checked' : ''}>${d}</label>`).join('')}
+      </div>
+      ${err('f-month-err', 'Pick at least one date.')}
+      <p class="hint">In shorter months, the last day of the month is used instead.</p></fieldset>
     <div class="field"><label for="f-cue">Cue <span class="muted small">(optional)</span></label>
       <input class="input" id="f-cue" name="cue" maxlength="80" value="${esc(h?.cue)}" placeholder="after morning coffee" autocomplete="off"></div>
     <div class="field"><label for="f-rem">Time &amp; reminder <span class="muted small">(optional)</span></label>
@@ -189,10 +214,10 @@ export function editorForm(h) {
     <fieldset class="field"><legend>Ends</legend>
       <label class="opt"><input type="radio" name="endMode" value="never" ${endMode === 'never' ? 'checked' : ''}> Never</label>
       <label class="opt"><input type="radio" name="endMode" value="date" ${endMode === 'date' ? 'checked' : ''}> On
-        <input class="input input--inline" name="endDate" type="date" aria-label="End date" value="${esc(h?.endDate)}" ${h ? '' : `min="${key(today())}"`}></label>
+        <input class="input input--inline" name="endDate" type="date" aria-label="End date" value="${esc(h?.endDate)}" ></label>
       <label class="opt"><input type="radio" name="endMode" value="count" ${endMode === 'count' ? 'checked' : ''}> After
         <input class="input input--inline" name="endAfter" type="number" min="1" max="365" inputmode="numeric" aria-label="Number of times" value="${esc(h?.endAfter)}" placeholder="10"> times</label>
-      ${err('f-end-err', 'Choose a date, or how many times.')}
+      ${err('f-end-err', 'Choose an end date after the start date, or how many times.')}
       <p class="hint">After the end, the habit stops showing up on Today. Its history stays.</p></fieldset>
     <div class="row row--between">
       <button type="button" class="btn" data-action="close-dialog">${icon('x')}<span>Cancel</span></button>

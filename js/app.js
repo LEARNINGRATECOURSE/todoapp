@@ -47,6 +47,8 @@ function ask(message, okLabel, cancelLabel = 'Keep my data') {
 }
 
 const habitOf = (id) => getState().habits.find((h) => h.id === id);
+// The first day any habit tracks; the Today date picker and day arrows can't go earlier
+const earliestKey = () => getState().habits.reduce((m, h) => (h.createdAt < m ? h.createdAt : m), key(today()));
 // The day being logged: today unless the user stepped back to catch up on an earlier day
 const viewKey = () => ui.date ?? key(today());
 const todaysLog = (id) => getState().logs[logKey(id, viewKey())];
@@ -56,9 +58,8 @@ const feltFor = (id, prev) => (ui.panel === id ? ui.draft : { resistance: prev?.
 const actions = {
   nav(el) { ui.date = null; go(el.dataset.view); },
   'day-step'(el) {
-    const earliest = getState().habits.reduce((m, h) => (h.createdAt < m ? h.createdAt : m), key(today()));
     const next = key(addDays(parse(viewKey()), Number(el.dataset.delta)));
-    ui.date = next >= key(today()) ? null : next < earliest ? ui.date : next;
+    ui.date = next >= key(today()) ? null : next < earliestKey() ? ui.date : next;
     ui.panel = null;
     render();
   },
@@ -154,21 +155,26 @@ document.addEventListener('submit', (e) => {
     return;
   }
   const data = new FormData(form);
-  const name = data.get('name').trim(), days = data.getAll('day').map(Number);
+  const name = data.get('name').trim(), days = data.getAll('day').map(Number), monthDays = data.getAll('monthDay').map(Number);
+  const monthly = data.get('cadence') === 'month', startDate = data.get('startDate');
   const isCount = data.get('kind') === 'count', target = isCount ? Number(data.get('target')) : null;
   const mode = data.get('endMode'), endDate = mode === 'date' ? data.get('endDate') : null, endAfter = mode === 'count' ? Number(data.get('endAfter')) : null;
+  const endBad = (mode === 'date' && (!endDate || endDate < startDate)) || (mode === 'count' && !(endAfter >= 1));
   const problems = [
     ['#f-name-err', !name, '#f-name'],
+    ['#f-start-err', !startDate, '#f-start'],
     ['#f-target-err', isCount && !(target >= 1), '#f-target'],
-    ['#f-days-err', !days.length, '[name=day]'],
-    ['#f-end-err', (mode === 'date' && !endDate) || (mode === 'count' && !(endAfter >= 1)), mode === 'date' ? '[name=endDate]' : '[name=endAfter]'],
+    ['#f-days-err', !monthly && !days.length, '[name=day]'],
+    ['#f-month-err', monthly && !monthDays.length, '[name=monthDay]'],
+    ['#f-end-err', endBad, mode === 'date' ? '[name=endDate]' : '[name=endAfter]'],
   ];
   problems.forEach(([err, bad]) => { form.querySelector(err).hidden = !bad; });
   const first = problems.find(([, bad]) => bad);
   if (first) return form.querySelector(first[2]).focus();
   if (data.get('reminder') && reminders.permission() === 'default') reminders.request().then(() => render()); // ask while we still have the tap
   saveHabit({
-    id: data.get('id') || null, name, days, every: Number(data.get('every')), cue: data.get('cue'), reminder: data.get('reminder'),
+    id: data.get('id') || null, name, startDate, repeat: monthly ? 'monthly' : 'weekly', days, monthDays,
+    every: Number(data.get('cadence')) || 1, cue: data.get('cue'), reminder: data.get('reminder'),
     endDate, endAfter, target, unit: data.get('unit'), step: Number(data.get('step')) || 1,
   });
   editor.close();
@@ -183,6 +189,15 @@ $('#restore-file').addEventListener('change', async (e) => {
   if (!backup) { ui.notice = "That file isn't a Scribble Habits backup, so nothing was changed."; return render(); }
   const msg = `Replace everything on this device with this backup (${backup.habits.length} habits, ${Object.keys(backup.logs).length} entries)?`;
   if (await ask(msg, 'Restore backup', 'Cancel')) { replaceAll(backup); ui.notice = 'Backup restored.'; render(); }
+});
+
+// The Today date picker: any day from the first tracked day up to today
+document.addEventListener('change', (e) => {
+  if (e.target.id !== 'pick-day' || !e.target.value) return;
+  const v = e.target.value, earliest = earliestKey();
+  ui.date = v >= key(today()) ? null : v < earliest ? earliest : v;
+  ui.panel = null;
+  render('pick-day');
 });
 
 // Typing in an "Ends" input selects its radio
